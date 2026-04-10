@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { fetchConfig, RECOMMENDED_APPS } from '../data/api.js'
+import { fetchConfig, fetchApps, RECOMMENDED_APPS } from '../data/api.js'
 import SearchModal from '../components/SearchModal.vue'
 import SiteFooter from '../components/SiteFooter.vue'
 import SiteNav from '../components/SiteNav.vue'
@@ -38,14 +38,7 @@ function switchLanguage(code) {
 
 const loadError = ref('')
 
-onMounted(async () => {
-  try {
-    const config = await fetchConfig()
-    if (config.regionCount) regionCount.value = config.regionCount
-  } catch (e) {
-    console.error('加载配置失败:', e)
-  }
-})
+  // (moved to polling Mount)
 
 function goToDetail(appStoreId) {
   // 注意：在模板里有些地方传的是 app.id，有些传的是 appStoreId
@@ -56,13 +49,12 @@ function goToDetail(appStoreId) {
 // 用户从搜索结果中选中某个应用 → 直接跳转详情页（实时抓取）
 function handleSearchSelect(app) {
   isSearchOpen.value = false
-  router.push(`/app/${app.appStoreId}`)
+  router.push(`/app/${app.appStoreId || app.id}`)
 }
 
-// 热门推荐分组
 const groupedApps = computed(() => {
   const catMap = {}
-  for (const app of RECOMMENDED_APPS) {
+  for (const app of apps.value) {
     if (!catMap[app.category]) catMap[app.category] = []
     catMap[app.category].push(app)
   }
@@ -71,16 +63,48 @@ const groupedApps = computed(() => {
 
 // 随便截取部分推荐的，当作主打应用（Featured）
 const featuredApps = computed(() => {
-  return RECOMMENDED_APPS.slice(0, 6)
+  return apps.value.slice(0, 12)
 })
 
 // 统计数据
-const stats = computed(() => ({
-  apps: RECOMMENDED_APPS.length,
-  plans: 0, // 静态不需要这个了，留 0 占位
-  regions: regionCount.value,
-  categories: new Set(RECOMMENDED_APPS.map(a => a.category)).size
-}))
+const stats = computed(() => {
+  const plans = apps.value.reduce((acc, a) => acc + (a.plansCount || 0), 0)
+  return {
+    apps: apps.value.length,
+    plans: plans, // 现在可以展示了
+    regions: regionCount.value,
+    categories: new Set(apps.value.map(a => a.category)).size
+  }
+})
+
+let pollingInterval = null
+
+onMounted(async () => {
+  try {
+    const config = await fetchConfig()
+    if (config.regionCount) regionCount.value = config.regionCount
+  } catch (e) {
+    console.error('加载配置失败:', e)
+  }
+  
+  // 首次请求应用列表
+  const data = await fetchApps()
+  if (data && data.length > 0) {
+    apps.value = data
+  }
+  
+  // 开始轮询：每隔 5 秒刷新一次应用列表（为了让后台获取完的 plansCount 和图标能在前台更新）
+  pollingInterval = setInterval(async () => {
+    const freshData = await fetchApps()
+    if (freshData && freshData.length > 0) {
+      apps.value = freshData
+    }
+  }, 5000)
+})
+
+onUnmounted(() => {
+  if (pollingInterval) clearInterval(pollingInterval)
+})
 </script>
 
 <template>
@@ -174,6 +198,11 @@ const stats = computed(() => ({
         <div class="stat-item">
           <span class="stat-number">{{ stats.apps }}</span>
           <span class="stat-label">{{ $t('stats.apps') }}</span>
+        </div>
+        <div class="stat-divider" v-if="stats.plans > 0"></div>
+        <div class="stat-item" v-if="stats.plans > 0">
+          <span class="stat-number">{{ stats.plans }}</span>
+          <span class="stat-label">{{ $t('stats.plans') }}</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">

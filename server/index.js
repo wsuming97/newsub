@@ -33,10 +33,54 @@ app.use(cors({
 app.use(express.json())
 
 // ============================================================
-// 启动时预加载汇率
+// 预热机制：后台获取这些应用，缓存价格和多国数据
 // ============================================================
+const RECOMMENDED_IDS = [
+  '6448311069', '6473753684', '6477489729', '6670324846', // AI
+  '544007664', '324684580', '363590051', '1446075923', // 影音
+  '1488977981', '1232780281', '1570800848', '1477376905', // 创作/效率
+  '1640745955', '310633997', '444934566', '1096918571', // 更多AI/社交
+  '1065046889', '979274205', '1188369007', '1147396723', // P图/笔记
+  '1193508329', '1452289769', '389801252', '626143814', // 其他知名订阅
+]
+let recommendedMeta = {}
+
+async function preWarmCache() {
+  console.log('🚀 [预热] 开始并发拉取推荐应用的基础信息(图标/名字)...')
+  try {
+    const metas = await Promise.all(RECOMMENDED_IDS.map(id => fetchAppMeta(id).catch(() => null)))
+    metas.forEach((meta, idx) => {
+      if (meta) recommendedMeta[RECOMMENDED_IDS[idx]] = meta
+    })
+    console.log(`✅ [预热] 获取到 ${Object.keys(recommendedMeta).length} 个应用的元数据`)
+  } catch(e) {}
+
+  console.log('🚀 [预热] 开始后台逐个抓取 34 国价格...')
+  for (const id of RECOMMENDED_IDS) {
+    if (!appCache.get(id)) {
+      try {
+        console.log(`  正在预抓取: ${recommendedMeta[id]?.name || id}`)
+        const priceData = await scrapeAppPrices(id, () => {})
+        if (priceData && recommendedMeta[id]) {
+          appCache.set(id, {
+            id,
+            ...recommendedMeta[id],
+            plansCount: priceData.plans.length,
+            plans: priceData.plans,
+            prices: priceData.prices
+          }, CACHE_TTL)
+        }
+      } catch (e) {
+        console.log(`  预抓取失败: ${id}`, e.message)
+      }
+    }
+  }
+}
+
+// 启动时预加载汇率，然后开始预热
 fetchLiveRates().then(() => {
   console.log('🚀 汇率预加载完成')
+  preWarmCache()
 })
 
 // 每 12 小时刷新一次汇率
@@ -169,22 +213,31 @@ app.get('/api/app/:appStoreId', readLimiter, async (req, res) => {
 // GET /api/apps — 返回缓存中已有的应用列表
 // ============================================================
 app.get('/api/apps', readLimiter, (req, res) => {
-  const keys = appCache.keys()
-  const apps = keys.map(key => {
-    const data = appCache.get(key)
-    if (!data) return null
+  // 返回已抓取完所有的完整应用
+  const fullApps = appCache.keys().map(key => appCache.get(key)).filter(Boolean)
+  const fullAppIds = new Set(fullApps.map(a => a.id))
+  
+  // 加上仅有元数据、尚未完成 34 国抓取的应用
+  const pendingApps = RECOMMENDED_IDS.filter(id => !fullAppIds.has(id) && recommendedMeta[id]).map(id => {
     return {
-      id: data.id,
-      name: data.name,
-      company: data.company,
-      category: data.category,
-      icon: data.icon,
-      description: data.description,
-      plansCount: data.plansCount,
+      id,
+      ...recommendedMeta[id],
+      plansCount: 0 
     }
-  }).filter(Boolean)
+  })
 
-  res.json({ success: true, data: apps })
+  const merged = [...fullApps, ...pendingApps].map(a => ({
+    id: a.id,
+    appStoreId: a.id,
+    name: a.name,
+    company: a.company,
+    category: a.category,
+    icon: a.icon,
+    description: a.description,
+    plansCount: a.plansCount
+  }))
+
+  res.json({ success: true, data: merged })
 })
 
 // ============================================================
