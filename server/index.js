@@ -57,21 +57,26 @@ async function preWarmCache() {
 
   console.log('🚀 [预热] 开始后台逐个抓取 34 国价格...')
   for (const id of RECOMMENDED_IDS) {
-    if (!appCache.get(id)) {
+    if (!appCache.getRaw(id)) {
       try {
         console.log(`  正在预抓取: ${recommendedMeta[id]?.name || id}`)
-        const priceData = await scrapeAppPrices(id, () => {})
-        if (priceData && recommendedMeta[id]) {
-          appCache.set(id, {
-            id,
-            ...recommendedMeta[id],
-            plansCount: priceData.plans.length,
-            plans: priceData.plans,
-            prices: priceData.prices
-          }, CACHE_TTL)
-        }
+        const scrapePromise = scrapeAppPrices(id, () => {}).then(priceData => {
+          if (priceData && recommendedMeta[id]) {
+            appCache.set(id, {
+              id,
+              ...recommendedMeta[id],
+              plansCount: priceData.plans.length,
+              plans: priceData.plans,
+              prices: priceData.prices
+            }, CACHE_TTL)
+          }
+        })
+        appCache.setInFlight(id, scrapePromise)
+        await scrapePromise
       } catch (e) {
         console.log(`  预抓取失败: ${id}`, e.message)
+      } finally {
+        appCache.clearInFlight(id)
       }
     }
   }
@@ -155,42 +160,19 @@ app.get('/api/app/:appStoreId', readLimiter, async (req, res) => {
     return res.status(400).json({ success: false, error: 'App Store ID 必须为纯数字' })
   }
 
-  // 1. 检查缓存
-  const cached = appCache.get(appStoreId)
-  if (cached) {
-    return res.json({ success: true, data: cached, cached: true })
-  }
-
-  // 2. 获取 App 元数据
-  let meta
-  try {
-    meta = await fetchAppMeta(appStoreId)
-    if (!meta) {
-      return res.status(404).json({ success: false, error: '未找到该应用' })
-    }
-  } catch (e) {
-    return res.status(500).json({ success: false, error: '获取应用信息失败: ' + e.message })
-  }
-
-  // 3. 实时抓取 34 国价格
-  try {
+  // 公共抓取方法
+  async function performScrape() {
+    let meta = await fetchAppMeta(appStoreId)
+    if (!meta) throw new Error('未找到该应用')
+    
     console.log(`[抓取] ${meta.name} (${appStoreId}) 开始实时抓取 34 国价格...`)
     const start = Date.now()
-    const priceData = await scrapeAppPrices(appStoreId, (cur, total, name) => {
-      // 服务端日志打印进度
-      if (cur % 5 === 0 || cur === total) {
-        console.log(`  [${cur}/${total}] ${name}`)
-      }
-    })
-
-    if (!priceData) {
-      return res.status(404).json({ success: false, error: '该应用无订阅/内购数据' })
-    }
+    const priceData = await scrapeAppPrices(appStoreId, () => {}) // 关闭进度输出防刷屏
+    if (!priceData) throw new Error('该应用无订阅/内购数据')
 
     const elapsed = ((Date.now() - start) / 1000).toFixed(1)
     console.log(`[抓取] ✅ ${meta.name} 完成，${priceData.plans.length} 个套餐，耗时 ${elapsed}s`)
 
-    // 4. 组装响应数据
     const result = {
       id: appStoreId,
       ...meta,
@@ -198,14 +180,48 @@ app.get('/api/app/:appStoreId', readLimiter, async (req, res) => {
       plans: priceData.plans,
       prices: priceData.prices,
     }
-
-    // 5. 存入缓存
     appCache.set(appStoreId, result, CACHE_TTL)
+    return result
+  }
 
-    res.json({ success: true, data: result, cached: false })
+  try {
+    // 1. 检查缓存与 Stale-While-Revalidate (SWR) 后台续期
+    const cached = appCache.get(appStoreId)
+    if (cached) {
+      if (!cached.stale) {
+        return res.json({ success: true, data: cached.data, cached: true, stale: false, fetchedAt: cached.fetchedAt })
+      } else {
+        // 缓存失效期满，但仍在宽限期内。立刻吐出旧值防空等。
+        res.json({ success: true, data: cached.data, cached: true, stale: true, refreshing: true, fetchedAt: cached.fetchedAt })
+        // 触发后台无缝刷新
+        if (!appCache.getInFlight(appStoreId)) {
+          const promise = performScrape()
+            .catch(e => console.error(`[SWR] 刷新失败 ${appStoreId}:`, e.message))
+            .finally(() => appCache.clearInFlight(appStoreId))
+          appCache.setInFlight(appStoreId, promise)
+        }
+        return
+      }
+    }
+
+    // 2. 无缓存：检查是否已有其他请求在抓取 (In-Flight Dedup)
+    let scrapePromise = appCache.getInFlight(appStoreId)
+    if (scrapePromise) {
+      console.log(`[抓取锁] ${appStoreId} 正在并发抓取中，新请求挂起复用...`)
+      const data = await scrapePromise
+      return res.json({ success: true, data, cached: true, stale: false })
+    }
+
+    // 3. 全局全新请求
+    scrapePromise = performScrape().finally(() => appCache.clearInFlight(appStoreId))
+    appCache.setInFlight(appStoreId, scrapePromise)
+
+    const data = await scrapePromise
+    res.json({ success: true, data, cached: false })
   } catch (e) {
-    console.error(`[抓取] ❌ ${meta.name} 失败:`, e.message)
-    res.status(500).json({ success: false, error: '价格抓取失败: ' + e.message })
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: '价格抓取失败: ' + e.message })
+    }
   }
 })
 
@@ -214,7 +230,7 @@ app.get('/api/app/:appStoreId', readLimiter, async (req, res) => {
 // ============================================================
 app.get('/api/apps', readLimiter, (req, res) => {
   // 返回已抓取完所有的完整应用
-  const fullApps = appCache.keys().map(key => appCache.get(key)).filter(Boolean)
+  const fullApps = appCache.keys().map(key => appCache.getRaw(key)).filter(Boolean)
   const fullAppIds = new Set(fullApps.map(a => a.id))
   
   // 加上仅有元数据、尚未完成 34 国抓取的应用

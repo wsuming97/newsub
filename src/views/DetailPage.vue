@@ -19,23 +19,47 @@ const isShareModalOpen = ref(false)
 const isSearchOpen = ref(false)
 const allApps = ref([])
 const isRefreshing = ref(false)
+const serverState = ref({ stale: false, refreshing: false, fetchedAt: 0 })
+let refreshPollInterval = null
 
-async function loadApp() {
-  isLoading.value = true
-  loadError.value = ''
+async function loadApp(isPolled = false) {
+  if (!isPolled) {
+    isLoading.value = true
+    loadError.value = ''
+  }
   try {
-    appData.value = await fetchAppById(route.params.id)
+    const response = await fetchAppById(route.params.id)
+    if (response) {
+      appData.value = response.data || response // 兼容旧版
+      serverState.value = {
+        stale: response.stale || false,
+        refreshing: response.refreshing || false,
+        fetchedAt: response.fetchedAt || 0
+      }
+    }
+
     if (appData.value?.id && appData.value.id !== route.params.id) {
       router.replace(`/app/${appData.value.id}`)
     }
-    if (appData.value && appData.value.plans.length > 0) {
+    if (appData.value && appData.value.plans?.length > 0 && !currentPlan.value) {
       currentPlan.value = appData.value.plans[0]
     }
+    
+    // 如果后台在刷新，则静默轮询直到结束
+    if (serverState.value.refreshing && !refreshPollInterval) {
+      refreshPollInterval = setInterval(async () => {
+        await loadApp(true) // polling mode
+        if (!serverState.value.refreshing) {
+          clearInterval(refreshPollInterval)
+          refreshPollInterval = null
+        }
+      }, 5000)
+    }
   } catch (e) {
-    loadError.value = '加载失败，请检查网络连接'
+    if (!isPolled) loadError.value = '加载失败，请检查网络连接'
     console.error('加载应用详情失败:', e)
   } finally {
-    isLoading.value = false
+    if (!isPolled) isLoading.value = false
   }
 }
 
@@ -67,6 +91,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('click', closeMenuOnOutsideClick)
+  if (refreshPollInterval) {
+    clearInterval(refreshPollInterval)
+    refreshPollInterval = null
+  }
 })
 
 // === 汇率与金钱可视化系统 ===
@@ -230,6 +258,11 @@ function goBack() {
         </div>
       </template>
     </SiteNav>
+
+    <div class="swr-banner" v-if="serverState.stale && serverState.refreshing">
+      <span>正在静默刷新最新价格... (上次更新: {{ new Date(serverState.fetchedAt).toLocaleString() }})</span>
+      <div class="swr-spinner"></div>
+    </div>
 
     <div class="main-content">
       <!-- 顶部：巨幕 App 展板 -->
@@ -484,6 +517,40 @@ function goBack() {
 </template>
 
 <style scoped>
+/* SWR (stale-while-revalidate) 顶部提示横幅 */
+.swr-banner {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 0.8rem 1.2rem;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  margin: 7rem auto 0 auto;
+  max-width: 1100px;
+  border: 1px solid #fde68a;
+  box-shadow: 0 4px 12px rgba(251, 191, 36, 0.15);
+  animation: slideDownFade 0.3s ease-out;
+}
+@keyframes slideDownFade {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.swr-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid rgba(245, 158, 11, 0.3);
+  border-top-color: #f59e0b;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .detail-page {
   padding-top: 5rem;
 }

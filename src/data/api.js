@@ -75,7 +75,7 @@ export async function fetchAppById(appStoreId) {
     error.status = res.status
     throw error
   }
-  return json?.data || null
+  return json || null
 }
 
 /**
