@@ -1,5 +1,5 @@
 # ============================================================
-# 阶段 1：构建前端
+# Stage 1: build frontend
 # ============================================================
 FROM node:20-alpine AS frontend-build
 
@@ -10,7 +10,7 @@ COPY . .
 RUN npm run build
 
 # ============================================================
-# 阶段 2：安装后端依赖
+# Stage 2: install backend dependencies
 # ============================================================
 FROM node:20-alpine AS backend-build
 
@@ -19,33 +19,33 @@ COPY server/package.json ./
 RUN npm install --omit=dev
 
 # ============================================================
-# 阶段 3：生产运行镜像
+# Stage 3: runtime image
 # ============================================================
 FROM node:20-alpine
 
-# 安装 Nginx 和 Supervisor（用于同时运行 Nginx + Node）
 RUN apk add --no-cache nginx supervisor
 
 WORKDIR /app
+ENV CACHE_DIR=/app/data
 
-# 复制前端构建产物
+# Frontend build output
 COPY --from=frontend-build /build/dist /app/dist
 
-# 复制后端代码和依赖
+# Backend code and dependencies
 COPY server/ /app/server/
 COPY --from=backend-build /build/server/node_modules /app/server/node_modules
 
-# 复制 Nginx 配置
+# Nginx config
 COPY nginx.conf /etc/nginx/http.d/default.conf
 
-# 创建数据目录（挂载点）
+# Persistent cache directory
 RUN mkdir -p /app/data
 
-# Supervisor 配置：同时管理 Nginx + Node.js
+# Supervisor config: run Nginx + Node API together
 RUN mkdir -p /etc/supervisor.d
-RUN echo -e "[supervisord]\nnodaemon=true\nlogfile=/dev/null\nlogfile_maxbytes=0\n\n[program:nginx]\ncommand=nginx -g 'daemon off;'\nautorestart=true\nstdout_logfile=/dev/stdout\nstdout_logfile_maxbytes=0\nstderr_logfile=/dev/stderr\nstderr_logfile_maxbytes=0\n\n[program:api]\ncommand=node /app/server/index.js\ndirectory=/app/server\nautorestart=true\nenvironment=NODE_ENV=production\nstdout_logfile=/dev/stdout\nstdout_logfile_maxbytes=0\nstderr_logfile=/dev/stderr\nstderr_logfile_maxbytes=0" > /etc/supervisord.conf
+RUN echo -e "[supervisord]\nnodaemon=true\nlogfile=/dev/null\nlogfile_maxbytes=0\n\n[program:nginx]\ncommand=nginx -g 'daemon off;'\nautorestart=true\nstdout_logfile=/dev/stdout\nstdout_logfile_maxbytes=0\nstderr_logfile=/dev/stderr\nstderr_logfile_maxbytes=0\n\n[program:api]\ncommand=node /app/server/index.js\ndirectory=/app/server\nautorestart=true\nenvironment=NODE_ENV=production,CACHE_DIR=/app/data\nstdout_logfile=/dev/stdout\nstdout_logfile_maxbytes=0\nstderr_logfile=/dev/stderr\nstderr_logfile_maxbytes=0" > /etc/supervisord.conf
 
 EXPOSE 80
 
-# Start only the runtime services so container restarts never reseed the mounted DB.
+# Runtime only; cache persistence is handled by /app/data volume
 CMD ["supervisord", "-c", "/etc/supervisord.conf"]

@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
 
 /**
  * 带有持久化、SWR (Stale-While-Revalidate) 及并发锁的缓存类
@@ -122,7 +123,16 @@ class Cache {
   clearInFlight(key) { this.inFlight.delete(key) }
 }
 
-const DATA_DIR = path.join(process.cwd(), 'data')
+const CURRENT_FILE = fileURLToPath(import.meta.url)
+const CURRENT_DIR = path.dirname(CURRENT_FILE)
+
+// 默认统一落到仓库根目录/容器挂载点的 data 目录：
+// - 本地: <repo>/data
+// - 容器: /app/data
+// 允许通过 CACHE_DIR 显式覆盖，便于 VPS/Compose 精确控制持久化位置。
+const DATA_DIR = process.env.CACHE_DIR
+  ? path.resolve(process.env.CACHE_DIR)
+  : path.resolve(CURRENT_DIR, '..', 'data')
 
 export const appCache = new Cache({ 
   persistPath: path.join(DATA_DIR, 'app_cache.json'),

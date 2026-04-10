@@ -7,8 +7,12 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      # CORS 白名单：限制允许的前端域名，多个用逗号分隔，生产环境必须配置
+      # CORS 白名单：限制允许访问后端 API 的前端域名，多个用逗号分隔
       CORS_ORIGIN: ${CORS_ORIGIN:-}
+      # 持久化缓存目录：后端会将 app_cache.json / rates_cache.json 写到这里
+      CACHE_DIR: /app/data
+    volumes:
+      - ./data:/app/data
     healthcheck:
       test:
         - CMD

@@ -1,106 +1,293 @@
-# Youhu — 全球 App Store 订阅比价引擎
+# Youhu
 
-帮用户找到全球最便宜的 App 订阅区。覆盖 **46 款热门应用 / 252 个套餐 / 34 个国家地区**。
+全球 App Store 订阅价格实时查询站。
 
-## 核心功能
+当前版本的真实定位不是“预灌库价格仓库”，而是：
 
-- **全球比价**：自动抓取 34 国 App Store 内购真实价格，一眼看出哪个区最便宜
-- **估算标记**：真实爬取的价格与汇率估算的参考价严格区分，不忽悠用户
-- **套餐 + 地区**：两个维度自由切换对比
-- **分享卡片**：一键生成比价图，发朋友圈/Twitter/Telegram
-- **自动巡查**：部署后每 48 小时自动更新全库价格，无需人工干预
+- 前端搜索应用
+- 后端按需实时抓取 34 个国家或地区的价格
+- 结果写入内存热缓存，并持久化到 JSON 缓存文件
+- 汇率通过实时接口拉取，失败时回退到内置默认值
 
-## 技术栈
+## 当前架构
+
+```text
+浏览器
+  -> Nginx（容器内 80）
+    -> 前端 dist 静态页面
+    -> /api 转发到 Express（3000）
+      -> App Store 页面实时抓取
+      -> 汇率 API
+      -> 内存缓存（TTL）
+      -> JSON 持久化缓存（/app/data/*.json）
+```
+
+### 技术栈
 
 | 层 | 技术 |
-|----|------|
-| 前端 | Vue 3 + Vite + vue-router (SPA) |
-| 后端 | Express + better-sqlite3 |
-| 数据库 | SQLite (`data/youhu.db`) |
-| 部署 | Docker + Nginx + Supervisor 一体容器 |
+|---|---|
+| 前端 | Vue 3 + Vite + vue-router + vue-i18n + html2canvas |
+| 后端 | Express + app-store-scraper |
+| 缓存 | 内存 `Map + TTL` + JSON 持久化缓存 |
+| 缓存策略 | In-Flight Dedup + Stale-While-Revalidate |
+| 汇率 | 实时汇率 API + fallback 默认值 |
+| 部署 | Docker + Nginx + Supervisor 单容器 |
 
-## 一键部署（VPS）
+## 和旧版本的区别
 
-```bash
-curl -sL https://raw.githubusercontent.com/wsuming97/newsub/main/deploy.sh | bash
-```
+当前代码已经不再使用以下链路：
 
-脚本自动完成：安装 Docker → 拉代码 → 配置环境变量 → 构建启动 → 灌库 → 挂 cron → 健康检查。
+- SQLite 持久化价格库
+- `seed.js` 灌库
+- `reprice_db.js` 重算数据库
+- `updater.js` 定时巡检更新
 
-### 手动部署
+也就是说，当前版本的价格数据不是长期真值存库，而是：
 
-```bash
-git clone https://github.com/wsuming97/newsub.git /opt/youhu
-cd /opt/youhu
+> 实时抓取为真值源，JSON 只作为持久化缓存层。
 
-# 配置环境变量
-cat > .env << 'EOF'
-ADMIN_TOKEN=你的管理密钥
-CORS_ORIGIN=https://你的域名
-WEB_PORT=8080
-EOF
+## 运行机制
 
-# 构建启动
-docker compose up -d --build
+### 首页
 
-# 首次灌库
-docker exec youhu node /app/server/seed.js --force
+- 首页通过 `/api/apps` 获取当前缓存中的应用列表
+- 服务启动时会预热一批推荐应用的元数据和部分价格
+- 首页每 5 秒轮询一次，刷新已抓取完成的应用状态
 
-# 验证
-curl http://127.0.0.1:8080/api/health
-```
+### 搜索
+
+- 搜索弹窗调用 `/api/search?q=...`
+- 后端使用 `app-store-scraper` 搜索 App Store 应用
+
+### 详情页
+
+- 详情页调用 `/api/app/:appStoreId`
+- 如果内存缓存命中，直接返回
+- 如果 JSON 持久化缓存命中，也会快速返回，并回填内存
+- 如果缓存过期但仍在宽限期内，先返回旧值，同时后台静默刷新
+- 如果完全没有缓存，后端会实时抓取该应用在 34 个国家或地区的价格
+- 首次抓取可能需要 15 到 30 秒
+
+### 缓存
+
+- 热缓存保存在进程内存中
+- 持久化缓存保存在 `CACHE_DIR` 指向的目录中，默认是：
+  - 本地开发：`<repo>/data`
+  - 容器内：`/app/data`
+- 持久化文件包括：
+  - `app_cache.json`
+  - `rates_cache.json`
+- 写盘采用防抖 + 原子替换，避免高频写入和半写入损坏
+
+### SWR（Stale-While-Revalidate）
+
+- 默认缓存 TTL 为 24 小时
+- 过期后并不会立刻阻塞用户
+- 在 7 天宽限期内，接口会先返回旧值，再后台刷新
+- 前端详情页会显示“正在静默刷新最新价格”的提示横幅
+
+### 并发去重
+
+- 同一个 App 在缓存未命中时，只允许一个真实抓取任务进行
+- 其他并发请求会复用同一个 Promise
+- 这样可以防止高并发下重复抓取 34 个国家价格
+
+### 汇率
+
+- 启动时拉一次实时汇率
+- 每 12 小时刷新一次
+- 当外部汇率接口不可用时，自动回退到内置默认汇率表
+
+## 当前运行特征
+
+| 方面 | 当前表现 |
+|---|---|
+| 首次打开详情页 | 慢，15 到 30 秒属于正常现象 |
+| 第二次打开 | 快，因为命中缓存 |
+| 容器普通重启后 | 若 `/app/data` 已挂载卷，缓存仍保留 |
+| `docker compose up -d --build` 后 | 若 `./data:/app/data` 已挂载，缓存仍保留 |
+| 数据新鲜度 | 高于旧数据库模式 |
+| 稳定性 | 更依赖 Apple 页面结构和外部汇率 API |
+| 部署复杂度 | 低于旧数据库模式 |
+| 运维预期 | 更像在线抓取服务，而不是价格仓库 |
+
+## API
+
+### `GET /api/health`
+
+健康检查。
+
+### `GET /api/config`
+
+返回：
+
+- 当前汇率表
+- 34 个国家或地区配置
+- `regionCount`
+
+### `GET /api/search?q=关键词`
+
+搜索 App Store 应用。
+
+### `GET /api/app/:appStoreId`
+
+获取单个应用的实时价格详情。
+
+返回内容包含：
+
+- 应用元数据
+- 套餐列表
+- 各套餐在 34 个国家或地区的价格
+- `cached`
+- `stale`
+- `refreshing`
+- `fetchedAt`
+
+### `GET /api/apps`
+
+返回当前缓存中的应用列表，以及预热中的推荐应用元数据。
 
 ## 本地开发
 
-```bash
-# 后端（端口 3000）
-cd server && npm install && node index.js
-
-# 前端（端口 8888）
-npm install && npm run dev
-```
-
-## 数据管理
-
-| 脚本 | 用途 | 使用时机 |
-|------|------|---------|
-| `generate_apps.js` | 爬取 34 国真实价格 → `apps.json` | 本地开发 / 首次部署前 |
-| `seed.js --force` | `apps.json` → SQLite 数据库 | 首次部署（只跑一次） |
-| `reprice_db.js` | 按最新汇率重算库中已有价格 | 汇率表更新后，优先使用 |
-| `updater.js` | 增量巡查更新（只 UPDATE 不 DELETE） | VPS 定时任务 (cron) |
+### 1. 启动后端
 
 ```bash
-# 定时更新（已由 deploy.sh 自动配置）
-0 3 */2 * * docker exec youhu node /app/server/updater.js >> /var/log/youhu-update.log 2>&1
-
-# 汇率表更新后，直接重算现有数据库（无需重新爬 34 国）
-docker exec youhu node /app/server/reprice_db.js
-
-# 只修复单个应用，例如 ChatGPT
-docker exec youhu node /app/server/reprice_db.js chatgpt
+cd server
+npm install
+node index.js
 ```
 
-## 项目结构
+默认监听 `3000`。
 
+### 2. 启动前端
+
+```bash
+npm install
+npm run dev
 ```
-├── deploy.sh              # 一键部署脚本
-├── Dockerfile             # 多阶段构建
-├── docker-compose.yml     # 容器编排
-├── nginx.conf             # 反代配置
-├── src/                   # Vue 前端
-│   ├── views/             # 首页 / 详情 / 计算器
-│   ├── components/        # 搜索 / 分享卡片
-│   └── data/api.js        # API 调用层
-├── server/                # Node 后端
-│   ├── index.js           # Express API
-│   ├── db.js              # SQLite 引擎
-│   ├── generate_apps.js   # 爬虫 + 应用目录
-│   ├── reprice_db.js      # 按最新汇率重算现有数据库
-│   ├── seed.js            # 创世灌库
-│   └── updater.js         # 增量更新器
-└── data/youhu.db          # 运行时数据库（git 忽略）
+
+默认监听 `8888`。
+
+本地开发时，Vite 会把 `/api` 代理到：
+
+```text
+http://127.0.0.1:3000
 ```
+
+如需修改代理目标，可设置：
+
+```bash
+VITE_PROXY_TARGET=http://127.0.0.1:3000
+```
+
+## Docker 部署
+
+### 1. 准备环境变量
+
+推荐在项目根目录创建 `.env`：
+
+```env
+CORS_ORIGIN=https://你的域名,https://www.你的域名
+WEB_PORT=8080
+```
+
+说明：
+
+- `CORS_ORIGIN`
+  允许访问后端 API 的前端来源白名单
+- `WEB_PORT`
+  宿主机对外暴露端口，默认 `8080`
+
+### 2. 启动
+
+```bash
+docker compose up -d --build
+```
+
+当前 `docker-compose.yml` 已经默认挂载：
+
+```text
+./data -> /app/data
+```
+
+因此只要你保留宿主机 `data/` 目录，缓存文件就会跨容器重建保留。
+
+### 3. 健康检查
+
+```bash
+curl http://127.0.0.1:8080/api/health
+```
+
+如改过端口，把 `8080` 替换成自己的 `WEB_PORT`。
+
+## 域名部署建议
+
+当前项目自身已经包含一层容器内 Nginx：
+
+- `/` 提供前端页面
+- `/api/` 转发到 Express
+
+正式上线时，推荐再在 VPS 宿主机放一层 Nginx 或 Caddy：
+
+```text
+域名 / 443
+  -> 宿主机 Nginx / Caddy
+    -> 127.0.0.1:8080
+      -> youhu 容器
+```
+
+这样可以统一处理：
+
+- HTTPS 证书
+- 多站点共存
+- 域名转发
+
+## 目录结构
+
+```text
+youhu/
+├── src/
+│   ├── views/
+│   │   ├── HomePage.vue
+│   │   ├── DetailPage.vue
+│   │   ├── CalculatorPage.vue
+│   │   └── LegalPage.vue
+│   ├── components/
+│   │   ├── SearchModal.vue
+│   │   ├── ShareCardModal.vue
+│   │   ├── SiteNav.vue
+│   │   └── SiteFooter.vue
+│   └── data/api.js
+├── server/
+│   ├── index.js
+│   ├── scraper.js
+│   ├── cache.js
+│   └── package.json
+├── data/
+│   ├── app_cache.json
+│   └── rates_cache.json
+├── Dockerfile
+├── docker-compose.yml
+├── nginx.conf
+└── deploy.sh
+```
+
+## 已知限制
+
+1. 首次详情抓取较慢，这是当前架构的自然结果。
+2. 如果你没有挂载 `./data:/app/data`，那么容器重建后缓存仍会丢失。
+3. App Store 页面结构变化可能导致部分国家价格抓取失败。
+4. 某些国家或套餐在当前时刻可能无价格数据，页面会显示未命中或缺失。
+5. 汇率为实时换算结果，仅供参考，实际结算请以商店页面为准。
+
+## 当前最值得继续处理的事项
+
+1. 重写 `deploy.sh`，去掉旧版数据库和无效环境变量逻辑。
+2. 删除或归档未使用文件，例如遗留调试文件和旧组件。
+3. 给首页也补充“缓存预热 / 静默刷新”的更明显状态提示。
+4. 决定是否需要再往前走一步，引入更细粒度的缓存清理策略。
+5. 视访问量决定是否需要从 JSON 缓存升级到 SQLite 或 Redis。
 
 ## 免责声明
 
-本站数据仅供参考，最终价格以 App Store 实际结算为准。本站与 Apple Inc. 及所列应用开发商无任何商业关联。
+本项目数据仅供参考，最终价格请以 App Store 实际页面和结算为准。项目与 Apple Inc. 及相关应用开发商无商业隶属关系。
