@@ -45,9 +45,10 @@ echo "✅ Compose 已就绪"
 # 2. 拉取代码
 # ——————————————————————————————————————————————
 if [ -d "$INSTALL_DIR/.git" ]; then
-  echo "📂 检测到已有安装，拉取最新代码..."
+  echo "📂 检测到已有安装，强制同步最新代码..."
   cd "$INSTALL_DIR"
-  git pull origin main
+  git fetch --all
+  git reset --hard origin/main
 else
   echo "📥 克隆仓库到 $INSTALL_DIR ..."
   git clone "$REPO_URL" "$INSTALL_DIR"
