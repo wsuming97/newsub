@@ -1,0 +1,38 @@
+# ============================================================
+# Youhu .gitignore — Docker Compose 部署模式
+# ============================================================
+
+# === 依赖目录（不上传，部署时容器内自动 npm install）===
+node_modules/
+server/node_modules/
+
+# === 构建产物（不上传，Docker 构建时自动生成）===
+dist/
+
+# === 数据库文件（不上传，部署时 seed.js 自动生成）===
+data/
+*.db
+
+# === 系统与编辑器 ===
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# === 环境配置 ===
+.env
+.env.local
+.env.production
+
+# === 日志 ===
+*.log
+npm-debug.log*
+
+# === 旧版静态数据回退文件（已有数据库，不再需要）===
+src/data/apps-static.js
+src/data/apps.js
+
+# === 旧版失效爬虫（已废弃）===
+# scripts/fetch_prices.js 保留在仓库中作为文档记录
