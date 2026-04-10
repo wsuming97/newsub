@@ -52,6 +52,8 @@ function handleSearchSelect(app) {
   router.push(`/app/${app.appStoreId || app.id}`)
 }
 
+const apps = ref([...RECOMMENDED_APPS])
+
 const groupedApps = computed(() => {
   const catMap = {}
   for (const app of apps.value) {
