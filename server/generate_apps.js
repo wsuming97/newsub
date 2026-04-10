@@ -82,7 +82,7 @@ export const CNY_RATES = {
   TWD: 0.222,
   CNY: 1.00,
   INR: 0.0857,
-  TRY: 0.213,
+  TRY: 0.153, // 从 0.213 暴跌至 0.153
   NGN: 0.00461,   // 1 NGN ≈ 0.0046 CNY (USD/NGN ≈ 1570)
   EGP: 0.144,     // USD/EGP ≈ 50.3
   ARS: 0.00724,   // USD/ARS ≈ 1000
