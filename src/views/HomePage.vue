@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { fetchConfig, fetchApps, RECOMMENDED_APPS } from '../data/api.js'
 import SearchModal from '../components/SearchModal.vue'
