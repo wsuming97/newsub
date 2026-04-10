@@ -16,7 +16,8 @@ server/node_modules/
 dist/
 
 # === 数据库文件（不上传，部署时 seed.js 自动生成）===
-data/
+/data/
+server/data/
 *.db
 
 # === 系统与编辑器 ===
