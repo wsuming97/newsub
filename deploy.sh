@@ -63,15 +63,8 @@ if [ ! -f .env ]; then
   
   # 自动生成随机 token
   ADMIN_TOKEN=$(openssl rand -hex 16 2>/dev/null || head -c 32 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 32)
-  
-  read -p "   管理员 Token [自动生成: ${ADMIN_TOKEN:0:8}...]: " input_token
-  ADMIN_TOKEN="${input_token:-$ADMIN_TOKEN}"
-  
-  read -p "   前端域名 (如 https://sub.example.com，留空则允许所有): " input_origin
-  CORS_ORIGIN="${input_origin:-*}"
-  
-  read -p "   Web 端口 [8080]: " input_port
-  WEB_PORT="${input_port:-8080}"
+  CORS_ORIGIN="*"
+  WEB_PORT="8080"
   
   cat > .env << EOF
 ADMIN_TOKEN=${ADMIN_TOKEN}
