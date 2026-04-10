@@ -60,17 +60,7 @@ async function preWarmCache() {
     if (!appCache.getRaw(id)) {
       try {
         console.log(`  正在预抓取: ${recommendedMeta[id]?.name || id}`)
-        const scrapePromise = scrapeAppPrices(id, () => {}).then(priceData => {
-          if (priceData && recommendedMeta[id]) {
-            appCache.set(id, {
-              id,
-              ...recommendedMeta[id],
-              plansCount: priceData.plans.length,
-              plans: priceData.plans,
-              prices: priceData.prices
-            }, CACHE_TTL)
-          }
-        })
+        const scrapePromise = performScrape(id, true)
         appCache.setInFlight(id, scrapePromise)
         await scrapePromise
       } catch (e) {
@@ -149,6 +139,32 @@ app.get('/api/search', searchLimiter, async (req, res) => {
 })
 
 // ============================================================
+// 封装的公共抓取方法（支持路由和预热共用）
+// ============================================================
+async function performScrape(appStoreId, silent = false) {
+  let meta = await fetchAppMeta(appStoreId)
+  if (!meta) throw new Error('未找到该应用')
+  
+  if (!silent) console.log(`[抓取] ${meta.name} (${appStoreId}) 开始实时抓取 34 国价格...`)
+  const start = Date.now()
+  const priceData = await scrapeAppPrices(appStoreId, () => {}) // 关闭进度输出防刷屏
+  if (!priceData) throw new Error('该应用无订阅/内购数据')
+
+  const elapsed = ((Date.now() - start) / 1000).toFixed(1)
+  if (!silent) console.log(`[抓取] ✅ ${meta.name} 完成，${priceData.plans.length} 个套餐，耗时 ${elapsed}s`)
+
+  const result = {
+    id: appStoreId,
+    ...meta,
+    plansCount: priceData.plans.length,
+    plans: priceData.plans,
+    prices: priceData.prices,
+  }
+  appCache.set(appStoreId, result, CACHE_TTL)
+  return result
+}
+
+// ============================================================
 // GET /api/app/:appStoreId — 获取应用详情 + 34 国实时价格
 // 首次请求实时抓取（约 15-30 秒），缓存 24h
 // ============================================================
@@ -158,30 +174,6 @@ app.get('/api/app/:appStoreId', readLimiter, async (req, res) => {
   // 校验：必须是纯数字
   if (!/^\d+$/.test(appStoreId)) {
     return res.status(400).json({ success: false, error: 'App Store ID 必须为纯数字' })
-  }
-
-  // 公共抓取方法
-  async function performScrape() {
-    let meta = await fetchAppMeta(appStoreId)
-    if (!meta) throw new Error('未找到该应用')
-    
-    console.log(`[抓取] ${meta.name} (${appStoreId}) 开始实时抓取 34 国价格...`)
-    const start = Date.now()
-    const priceData = await scrapeAppPrices(appStoreId, () => {}) // 关闭进度输出防刷屏
-    if (!priceData) throw new Error('该应用无订阅/内购数据')
-
-    const elapsed = ((Date.now() - start) / 1000).toFixed(1)
-    console.log(`[抓取] ✅ ${meta.name} 完成，${priceData.plans.length} 个套餐，耗时 ${elapsed}s`)
-
-    const result = {
-      id: appStoreId,
-      ...meta,
-      plansCount: priceData.plans.length,
-      plans: priceData.plans,
-      prices: priceData.prices,
-    }
-    appCache.set(appStoreId, result, CACHE_TTL)
-    return result
   }
 
   try {
