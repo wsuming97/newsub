@@ -115,7 +115,7 @@ function formatPrice(cnyPrice) {
 }
 
 function formatPlanDisplayName(planName) {
-  return (planName || '').replace(/\s*\(\d+\)$/, '')
+  return planName || ''
 }
 
 const currentPlanDisplayName = computed(() => formatPlanDisplayName(currentPlan.value))

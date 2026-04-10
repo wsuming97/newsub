@@ -839,6 +839,15 @@ export async function scrapeApp(app) {
   // 1. 先抓美区作为 canonical 基准
   console.log(`  → 抓取美区基准...`)
   const usIAPs = await fetchPageIAPs(app.appStoreId, 'us')
+  
+  // 补充：从 iTunes Lookup 抓取真实高清 Icon 替换掉本地破损/写死的 Icon
+  try {
+    const itunesUrl = `https://itunes.apple.com/lookup?id=${app.appStoreId}`
+    const itunesRes = await fetch(itunesUrl).then(r => r.json())
+    if (itunesRes.results && itunesRes.results[0]) {
+      app.icon = itunesRes.results[0].artworkUrl512 || itunesRes.results[0].artworkUrl100 || app.icon
+    }
+  } catch (e) {}
 
   if (!usIAPs) {
     if (app.fallbackPlans && app.fallbackPlans.length > 0) {
@@ -860,8 +869,7 @@ export async function scrapeApp(app) {
   for (const iap of usIAPs) {
     nameCount[iap.name] = (nameCount[iap.name] || 0) + 1
     const isDup = usIAPs.filter(x => x.name === iap.name).length > 1
-    const idx = nameCount[iap.name]
-    const key = isDup ? `${iap.name} (${idx})` : iap.name
+    const key = isDup ? `${iap.name} (${iap.priceStr})` : iap.name
     canonicalPlans.push({ key, name: iap.name, usVal: iap.val })
   }
 
