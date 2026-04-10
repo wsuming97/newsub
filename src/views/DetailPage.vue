@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { fetchAppById, fetchApps, deleteApp, fetchConfig } from '../data/api.js'
+import { fetchAppById, fetchApps, fetchConfig } from '../data/api.js'
 import ShareCardModal from '../components/ShareCardModal.vue'
 import SearchModal from '../components/SearchModal.vue'
 import SiteNav from '../components/SiteNav.vue'
@@ -124,7 +124,12 @@ const currentPlanDisplayName = computed(() => formatPlanDisplayName(currentPlan.
 const currentPrices = computed(() => {
   if (!appData.value || !currentPlan.value) return []
   const prices = appData.value.prices[currentPlan.value] || []
-  return [...prices].sort((a, b) => a.cny - b.cny)
+  return [...prices].sort((a, b) => {
+    const aRank = a.cny > 0 ? a.cny : Number.POSITIVE_INFINITY
+    const bRank = b.cny > 0 ? b.cny : Number.POSITIVE_INFINITY
+    if (aRank !== bRank) return aRank - bRank
+    return a.region.localeCompare(b.region, 'zh-CN')
+  })
 })
 
 // 有效价格列表（排除 cny=0 的未上架地区，用于最低价/图表等分析）
@@ -200,16 +205,8 @@ function goBack() {
   router.push('/')
 }
 
-async function handleDelete() {
-  if (!confirm(`确定要移除 ${appData.value.name} 吗？`)) return;
-  try {
-    await deleteApp(appData.value.id);
-    await fetchApps(true); // 刷新全量列表缓存
-    router.push('/');
-  } catch (e) {
-    alert(e?.message || '删除失败');
-  }
-}
+
+
 </script>
 
 <template>

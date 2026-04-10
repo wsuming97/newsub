@@ -66,11 +66,18 @@ npm install && npm run dev
 |------|------|---------|
 | `generate_apps.js` | 爬取 34 国真实价格 → `apps.json` | 本地开发 / 首次部署前 |
 | `seed.js --force` | `apps.json` → SQLite 数据库 | 首次部署（只跑一次） |
+| `reprice_db.js` | 按最新汇率重算库中已有价格 | 汇率表更新后，优先使用 |
 | `updater.js` | 增量巡查更新（只 UPDATE 不 DELETE） | VPS 定时任务 (cron) |
 
 ```bash
 # 定时更新（已由 deploy.sh 自动配置）
 0 3 */2 * * docker exec youhu node /app/server/updater.js >> /var/log/youhu-update.log 2>&1
+
+# 汇率表更新后，直接重算现有数据库（无需重新爬 34 国）
+docker exec youhu node /app/server/reprice_db.js
+
+# 只修复单个应用，例如 ChatGPT
+docker exec youhu node /app/server/reprice_db.js chatgpt
 ```
 
 ## 项目结构
@@ -88,6 +95,7 @@ npm install && npm run dev
 │   ├── index.js           # Express API
 │   ├── db.js              # SQLite 引擎
 │   ├── generate_apps.js   # 爬虫 + 应用目录
+│   ├── reprice_db.js      # 按最新汇率重算现有数据库
 │   ├── seed.js            # 创世灌库
 │   └── updater.js         # 增量更新器
 └── data/youhu.db          # 运行时数据库（git 忽略）

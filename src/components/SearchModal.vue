@@ -1,10 +1,10 @@
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { searchApps, RECOMMENDED_APPS } from '../data/api.js'
 
 const props = defineProps({
-  isOpen: Boolean,
-  apps: { type: Array, default: () => [] }
+  isOpen: Boolean
 })
 
 const emit = defineEmits(['close'])
@@ -14,34 +14,58 @@ const query = ref('')
 const inputRef = ref(null)
 const activeIndex = ref(0)
 
-// 搜索结果：支持名称、公司、分类模糊匹配
-const results = computed(() => {
-  if (!query.value.trim()) return props.apps.slice(0, 8) // 空搜索显示热门
-  const q = query.value.toLowerCase().trim()
-  return props.apps.filter(app =>
-    app.name.toLowerCase().includes(q) ||
-    app.company.toLowerCase().includes(q) ||
-    app.category.toLowerCase().includes(q) ||
-    (app.id && app.id.toLowerCase().includes(q))
-  ).slice(0, 12)
-})
+const results = ref([])
+const isSearching = ref(false)
 
-// 空搜索提示文案
-const isShowingDefault = computed(() => !query.value.trim())
+// 空搜索显示热门
+const isShowingDefault = ref(true)
 
-// 监听弹窗打开，自动聚焦
+let searchTimeout = null
+
+// 监听弹窗打开，自动聚焦并重置
 watch(() => props.isOpen, async (val) => {
   if (val) {
     query.value = ''
     activeIndex.value = 0
+    results.value = RECOMMENDED_APPS.slice(0, 8)
+    isShowingDefault.value = true
     await nextTick()
     inputRef.value?.focus()
   }
 })
 
-// 重置高亮索引
-watch(query, () => {
+// 监听输入，防抖请求 API
+watch(query, (newVal) => {
   activeIndex.value = 0
+  const q = newVal.trim()
+  
+  if (!q) {
+    results.value = RECOMMENDED_APPS.slice(0, 8)
+    isShowingDefault.value = true
+    isSearching.value = false
+    clearTimeout(searchTimeout)
+    return
+  }
+
+  isShowingDefault.value = false
+  isSearching.value = true
+
+  clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(async () => {
+    try {
+      const res = await searchApps(q)
+      // 如果此时 query 已经变了，就忽略这次结果
+      if (query.value.trim() === q) {
+        results.value = res.slice(0, 12)
+      }
+    } catch (e) {
+      console.error('搜索出错:', e)
+    } finally {
+      if (query.value.trim() === q) {
+        isSearching.value = false
+      }
+    }
+  }, 300) // 300ms 防抖
 })
 
 // 键盘导航
@@ -63,7 +87,9 @@ function handleKeydown(e) {
 }
 
 function selectApp(app) {
-  router.push(`/app/${app.id}`)
+  // 原生搜索结果里是 appStoreId，推荐列表里也是 appStoreId
+  const targetId = app.appStoreId || app.id
+  router.push(`/app/${targetId}`)
   closeModal()
 }
 
@@ -114,34 +140,49 @@ onUnmounted(() => {
 
         <!-- 结果区域 -->
         <div class="search-results">
-          <div v-if="isShowingDefault" class="results-hint">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-            <span>热门应用</span>
+          <div v-if="isSearching" class="results-hint" style="justify-content: center; padding: 2rem;">
+            <svg class="spinner" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="2" x2="12" y2="6"></line>
+              <line x1="12" y1="18" x2="12" y2="22"></line>
+              <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+              <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+              <line x1="2" y1="12" x2="6" y2="12"></line>
+              <line x1="18" y1="12" x2="22" y2="12"></line>
+              <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+              <line x1="16.24" y1="4.93" x2="19.07" y2="7.76"></line>
+            </svg>
+            <span style="color: #3b82f6; margin-left: 8px;">正在搜索 App Store...</span>
           </div>
-          <div v-else-if="results.length === 0" class="no-results">
-            <span>没有找到匹配的应用</span>
-          </div>
-          <div v-else class="results-hint">
-            <span>找到 {{ results.length }} 个结果</span>
-          </div>
+          <template v-else>
+            <div v-if="isShowingDefault" class="results-hint">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              <span>热门应用</span>
+            </div>
+            <div v-else-if="results.length === 0" class="no-results">
+              <span>没有找到匹配的应用</span>
+            </div>
+            <div v-else class="results-hint">
+              <span>找到 {{ results.length }} 个结果</span>
+            </div>
 
-          <div class="results-list">
-            <button
-              v-for="(app, index) in results"
-              :key="app.id"
-              :class="['result-item', { active: index === activeIndex }]"
-              @click="selectApp(app)"
-              @mouseenter="activeIndex = index"
-            >
-              <img :src="app.icon || `/icons/${app.id}.webp`" :alt="app.name" class="result-icon" @error="$event.target.src=`/icons/${app.id}.png`" />
-              <div class="result-meta">
-                <span class="result-name">{{ app.name }}</span>
-                <span class="result-company">{{ app.company }}</span>
-              </div>
-              <span class="result-category">{{ app.category }}</span>
-              <svg class="result-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
-          </div>
+            <div class="results-list">
+              <button
+                v-for="(app, index) in results"
+                :key="app.appStoreId || app.id"
+                :class="['result-item', { active: index === activeIndex }]"
+                @click="selectApp(app)"
+                @mouseenter="activeIndex = index"
+              >
+                <img :src="app.icon || `/icons/${app.id}.webp`" :alt="app.name" class="result-icon" @error="$event.target.src=`/icons/${app.id}.png`" />
+                <div class="result-meta">
+                  <span class="result-name">{{ app.name }}</span>
+                  <span class="result-company">{{ app.developer || app.company || 'App Store' }}</span>
+                </div>
+                <span class="result-category">{{ app.genre || app.category || '应用' }}</span>
+                <svg class="result-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+          </template>
         </div>
 
         <!-- 底部提示 -->
@@ -158,6 +199,13 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.spinner {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  100% { transform: rotate(360deg); }
+}
+
 .search-overlay {
   position: fixed;
   inset: 0;

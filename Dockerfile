@@ -16,7 +16,6 @@ FROM node:20-alpine AS backend-build
 
 WORKDIR /build/server
 COPY server/package.json ./
-RUN apk add --no-cache python3 make g++ sqlite-dev
 RUN npm install --omit=dev
 
 # ============================================================
@@ -44,7 +43,7 @@ RUN mkdir -p /app/data
 
 # Supervisor 配置：同时管理 Nginx + Node.js
 RUN mkdir -p /etc/supervisor.d
-RUN echo -e "[supervisord]\nnodaemon=true\nlogfile=/dev/null\nlogfile_maxbytes=0\n\n[program:nginx]\ncommand=nginx -g 'daemon off;'\nautorestart=true\nstdout_logfile=/dev/stdout\nstdout_logfile_maxbytes=0\nstderr_logfile=/dev/stderr\nstderr_logfile_maxbytes=0\n\n[program:api]\ncommand=node /app/server/index.js\ndirectory=/app/server\nautorestart=true\nenvironment=DB_PATH=/app/data/youhu.db,NODE_ENV=production\nstdout_logfile=/dev/stdout\nstdout_logfile_maxbytes=0\nstderr_logfile=/dev/stderr\nstderr_logfile_maxbytes=0" > /etc/supervisord.conf
+RUN echo -e "[supervisord]\nnodaemon=true\nlogfile=/dev/null\nlogfile_maxbytes=0\n\n[program:nginx]\ncommand=nginx -g 'daemon off;'\nautorestart=true\nstdout_logfile=/dev/stdout\nstdout_logfile_maxbytes=0\nstderr_logfile=/dev/stderr\nstderr_logfile_maxbytes=0\n\n[program:api]\ncommand=node /app/server/index.js\ndirectory=/app/server\nautorestart=true\nenvironment=NODE_ENV=production\nstdout_logfile=/dev/stdout\nstdout_logfile_maxbytes=0\nstderr_logfile=/dev/stderr\nstderr_logfile_maxbytes=0" > /etc/supervisord.conf
 
 EXPOSE 80
 

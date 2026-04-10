@@ -1,14 +1,12 @@
 {
   "name": "youhu-server",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "seed": "node seed.js"
+    "start": "node index.js"
   },
   "dependencies": {
     "app-store-scraper": "^0.18.0",
-    "better-sqlite3": "^12.8.0",
     "cors": "^2.8.5",
     "express": "^4.21.0",
     "express-rate-limit": "^8.3.2"

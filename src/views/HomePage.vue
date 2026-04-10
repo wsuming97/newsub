@@ -1,19 +1,16 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { fetchApps, addApp, fetchConfig } from '../data/api.js'
-import AddAppModal from '../components/AddAppModal.vue'
+import { fetchConfig, RECOMMENDED_APPS } from '../data/api.js'
 import SearchModal from '../components/SearchModal.vue'
 import SiteFooter from '../components/SiteFooter.vue'
 import SiteNav from '../components/SiteNav.vue'
 
 const router = useRouter()
 const currentNav = ref('home')
-const isAddModalOpen = ref(false)
 const isSearchOpen = ref(false)
-const apps = ref([])
-const isLoading = ref(true)
-const regionCount = ref(34) // 默认值，会被 API 返回的真实值覆盖
+const isLoading = ref(false)
+const regionCount = ref(34)
 
 const navItems = [
   { key: 'home', labelKey: 'nav.home', icon: 'home' },
@@ -41,81 +38,48 @@ function switchLanguage(code) {
 
 const loadError = ref('')
 
-async function loadHomeData(forceRefresh = false) {
-  loadError.value = ''
-  isLoading.value = true
+onMounted(async () => {
   try {
-    const [appsList, config] = await Promise.all([fetchApps(forceRefresh), fetchConfig()])
-    apps.value = appsList
+    const config = await fetchConfig()
     if (config.regionCount) regionCount.value = config.regionCount
   } catch (e) {
-    loadError.value = '加载应用列表失败，请检查网络连接'
-    console.error('首页加载失败:', e)
-  } finally {
-    isLoading.value = false
+    console.error('加载配置失败:', e)
   }
-}
-
-onMounted(async () => {
-  await loadHomeData()
 })
 
-function goToDetail(appId) {
-  router.push(`/app/${appId}`)
+function goToDetail(appStoreId) {
+  // 注意：在模板里有些地方传的是 app.id，有些传的是 appStoreId
+  // 原生 API 里是 id，但我们的数据结构改成了 appStoreId
+  router.push(`/app/${appStoreId}`)
 }
 
-// 用户从搜索结果中选中某个应用：自动入库 + 跳转详情
-// 弹窗保持打开并显示爬取进度，完成后关闭并跳转
-const isScraping = ref(false)
-const scrapingApp = ref(null)
-const scrapeError = ref('')
-
-async function handleSearchSelect(app) {
-  // 告知弹窗进入爮取状态
-  isScraping.value = true
-  scrapingApp.value = app
-  scrapeError.value = ''
-
-  try {
-    const res = await addApp({ id: String(app.appId) })
-    if (res && res.success && res.id) {
-      apps.value = await fetchApps(true)
-      isAddModalOpen.value = false
-      isScraping.value = false
-      scrapingApp.value = null
-      router.push(`/app/${res.id}`)
-    } else {
-      scrapeError.value = res?.error || '入库失败，请重试'
-      isScraping.value = false
-    }
-  } catch (e) {
-    console.error('入库失败:', e)
-    scrapeError.value = e?.message || '网络错误，请重试'
-    isScraping.value = false
-  }
+// 用户从搜索结果中选中某个应用 → 直接跳转详情页（实时抓取）
+function handleSearchSelect(app) {
+  isSearchOpen.value = false
+  router.push(`/app/${app.appStoreId}`)
 }
 
-// 应用分组
+// 热门推荐分组
 const groupedApps = computed(() => {
-  const catSet = new Set(apps.value.map(a => a.category))
-  return Array.from(catSet).map(cat => ({
-    name: cat,
-    apps: apps.value.filter(a => a.category === cat)
-  }))
+  const catMap = {}
+  for (const app of RECOMMENDED_APPS) {
+    if (!catMap[app.category]) catMap[app.category] = []
+    catMap[app.category].push(app)
+  }
+  return Object.entries(catMap).map(([name, apps]) => ({ name, apps }))
 })
 
-// 精选热门应用（首页落地页展示）
+// 随便截取部分推荐的，当作主打应用（Featured）
 const featuredApps = computed(() => {
-  const picks = ['chatgpt', 'youtube', 'netflix', 'spotify', 'claude', 'notion']
-  return picks.map(id => apps.value.find(a => a.id === id)).filter(Boolean)
+  return RECOMMENDED_APPS.slice(0, 6)
 })
 
 // 统计数据
 const stats = computed(() => ({
-  apps: apps.value.length,
-  plans: apps.value.reduce((sum, a) => sum + (a.plansCount || 0), 0),
+  apps: RECOMMENDED_APPS.length,
+  plans: 0, // 静态不需要这个了，留 0 占位
   regions: regionCount.value,
-  categories: new Set(apps.value.map(a => a.category)).size
+  categories: new Set(RECOMMENDED_APPS.map(a => a.category)).size
 }))
 </script>
 
@@ -153,25 +117,13 @@ const stats = computed(() => ({
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </button>
         </div>
-        <div class="search-bubble add-bubble" @click="isAddModalOpen = true">
-          <button class="search-btn" title="全网查价">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-          </button>
+        <div class="search-bubble" @click="isSearchOpen = true">
+          <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span class="search-text">{{ $t('nav.search') }}</span>
+          <span class="search-shortcut">Ctrl K</span>
         </div>
       </template>
     </SiteNav>
-
-    <AddAppModal 
-      :isOpen="isAddModalOpen" 
-      :isScraping="isScraping"
-      :scrapingApp="scrapingApp"
-      :scrapeError="scrapeError"
-      @close="isAddModalOpen = false; isScraping = false; scrapingApp = null; scrapeError = ''"
-      @select="handleSearchSelect"
-    />
 
     <SearchModal
       :isOpen="isSearchOpen"
@@ -205,9 +157,9 @@ const stats = computed(() => ({
           <p class="hero-subtitle" v-html="$t('hero.subtitle', { apps: stats.apps })">
           </p>
           <div class="hero-actions">
-            <button class="cta-primary" @click="isAddModalOpen = true">
+            <button class="cta-primary" @click="isSearchOpen = true">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              {{ $t('hero.addBtn') }}
+              搜索全网应用
             </button>
             <button class="cta-secondary" @click="currentNav = 'subscription'">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -222,11 +174,6 @@ const stats = computed(() => ({
         <div class="stat-item">
           <span class="stat-number">{{ stats.apps }}</span>
           <span class="stat-label">{{ $t('stats.apps') }}</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
-          <span class="stat-number">{{ stats.plans }}</span>
-          <span class="stat-label">{{ $t('stats.plans') }}</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
@@ -254,19 +201,18 @@ const stats = computed(() => ({
         <div class="featured-grid">
           <div
             v-for="app in featuredApps"
-            :key="app.id"
+            :key="app.appStoreId"
             class="featured-card"
-            @click="goToDetail(app.id)"
+            @click="goToDetail(app.appStoreId)"
           >
             <div class="fc-top">
               <img :src="app.icon" :alt="app.name" class="fc-icon" />
               <div class="fc-meta">
                 <h3 class="fc-name">{{ app.name }}</h3>
-                <span class="fc-company">{{ app.company }}</span>
+                <span class="fc-company">{{ app.company || 'App Store' }}</span>
               </div>
-              <span class="fc-plans-badge">{{ app.plansCount }} 套餐</span>
             </div>
-            <p class="fc-desc">{{ app.description }}</p>
+            <p class="fc-desc">{{ app.description || '点击查看实时全球价格对比...' }}</p>
             <div class="fc-bottom">
               <span class="fc-category">{{ app.category }}</span>
               <span class="fc-arrow">
@@ -404,9 +350,9 @@ const stats = computed(() => ({
           <div class="app-grid">
           <div
             v-for="app in group.apps"
-            :key="app.id"
+            :key="app.appStoreId"
             class="app-card"
-            @click="goToDetail(app.id)"
+            @click="goToDetail(app.appStoreId)"
           >
             <div class="card-body">
               <div class="card-header">

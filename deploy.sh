@@ -98,31 +98,7 @@ for i in $(seq 1 30); do
 done
 
 # ——————————————————————————————————————————————
-# 5. 首次灌库（仅数据库为空时）
-# ——————————————————————————————————————————————
-APP_COUNT=$(curl -sf "http://127.0.0.1:${WEB_PORT}/api/health" 2>/dev/null | grep -o '"apps":[0-9]*' | grep -o '[0-9]*' || echo "0")
-
-if [ "$APP_COUNT" = "0" ] || [ -z "$APP_COUNT" ]; then
-  echo "📦 数据库为空，执行首次数据导入..."
-  docker exec "$APP_NAME" node /app/server/seed.js --force
-  echo "✅ 数据导入完成"
-else
-  echo "✅ 数据库已有 ${APP_COUNT} 款应用，跳过灌库"
-fi
-
-# ——————————————————————————————————————————————
-# 6. 配置定时更新（cron）
-# ——————————————————————————————————————————————
-CRON_CMD="0 3 */2 * * docker exec $APP_NAME node /app/server/updater.js >> $LOG_FILE 2>&1"
-if crontab -l 2>/dev/null | grep -q "updater.js"; then
-  echo "✅ 定时更新任务已存在"
-else
-  (crontab -l 2>/dev/null; echo "$CRON_CMD") | crontab -
-  echo "✅ 已配置定时更新（每 48 小时凌晨 3 点）"
-fi
-
-# ——————————————————————————————————————————————
-# 7. 最终验证
+# 5. 最终验证
 # ——————————————————————————————————————————————
 echo ""
 echo "🏥 健康检查..."
@@ -136,12 +112,7 @@ if echo "$HEALTH" | grep -q '"status":"ok"'; then
   echo ""
   echo "   📍 站点地址:  http://$(hostname -I | awk '{print $1}'):${WEB_PORT}"
   echo "   📍 健康检查:  http://127.0.0.1:${WEB_PORT}/api/health"
-  echo "   🔑 管理Token: 见 ${INSTALL_DIR}/.env"
-  echo "   📋 定时更新:  每 48h 自动巡查"
-  echo "   📝 更新日志:  ${LOG_FILE}"
-  echo ""
   echo "   后续更新代码: cd ${INSTALL_DIR} && git pull && $COMPOSE up -d --build"
-  echo "   手动刷价格:   docker exec ${APP_NAME} node /app/server/updater.js"
   echo ""
 else
   echo "⚠️  健康检查未通过，请检查日志："

@@ -96,6 +96,16 @@ node generate_apps.js
 node seed.js --force
 ```
 
+如果只是更新汇率表，或者数据库里已经有原始价格字符串，优先直接重算现有库，不必重新爬 34 个国家：
+```bash
+docker exec youhu node /app/server/reprice_db.js
+```
+
+如果只修复单个应用，例如 ChatGPT：
+```bash
+docker exec youhu node /app/server/reprice_db.js chatgpt
+```
+
 如果只是首次初始化空库，优先走 Docker 内的一次性初始化：
 
 ```bash
