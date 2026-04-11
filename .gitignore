@@ -49,6 +49,8 @@ ISSUES.md
 MAINTENANCE.md
 VPS_DEPLOY_CHECKLIST.md
 deploy.sh
+scripts/maintain.sh
+scripts/smoke-check.mjs
 
 # === 无关子项目 ===
 remote_caddnginx/
