@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { fetchAppById, fetchApps, fetchConfig } from '../data/api.js'
 import ShareCardModal from '../components/ShareCardModal.vue'
@@ -88,6 +88,14 @@ async function refreshRates() {
   }
   setTimeout(() => { isRefreshingRates.value = false }, 800)
 }
+
+// 同一路由组件间切换（如搜索结果跳转）时，重新加载数据
+watch(() => route.params.id, (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    currentPlan.value = ''
+    loadApp()
+  }
+})
 
 onMounted(async () => {
   loadApp()
