@@ -1,9 +1,11 @@
 /**
  * Youhu 后端 API 服务 v2
  * 
- * 架构：实时查询 + 内存缓存（无数据库）
- * 用户搜索 → iTunes Search API
- * 用户查看详情 → 实时抓取 34 国价格 → 缓存 24h
+ * 架构：实时抓取 + 内存热缓存 + JSON 持久化缓存
+ * - 用户搜索 → iTunes Search API
+ * - 用户查看详情 → 实时抓取 34 国价格 → 内存缓存 + 落盘 app_cache.json
+ * - SWR 策略：缓存 24h，过期后返回旧值并后台刷新
+ * - 虚拟应用（iCloud 等）：硬编码价格，启动时注入缓存
  */
 import express from 'express'
 import cors from 'cors'
@@ -468,5 +470,5 @@ app.get('/api/apps', readLimiter, (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Youhu API v2 已启动 → http://0.0.0.0:${PORT}`)
   console.log(`📊 接口: /api/search | /api/app/:id | /api/config | /api/apps`)
-  console.log(`🗄️  模式: 实时抓取 + 内存缓存（无数据库）`)
+  console.log(`🗄️  模式: 实时抓取 + 内存热缓存 + JSON 持久化`)
 })
