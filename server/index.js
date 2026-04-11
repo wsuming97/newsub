@@ -13,6 +13,7 @@ import rateLimit from 'express-rate-limit'
 import store from 'app-store-scraper'
 import { appCache, ratesCache } from './cache.js'
 import { COUNTRIES, fetchLiveRates, getCnyRates, scrapeAppPrices, fetchAppMeta } from './scraper.js'
+import { buildCatalogBackedApp, findCatalogApp, getCatalogAppById, hasCatalogFallback } from './fallbackCatalog.js'
 
 const app = express()
 app.set('trust proxy', 1) // 在 nginx 反向代理后面，允许 X-Forwarded-For
@@ -119,6 +120,14 @@ const VIRTUAL_APPS = {
       ]
     }
   }
+}
+
+// 用统一 catalog 覆盖 iCloud+ 的旧手写结构，保证它与真实应用的 plans/prices 结构一致。
+const iCloudCatalogApp = getCatalogAppById('icloud')
+if (iCloudCatalogApp) {
+  VIRTUAL_APPS['virtual-icloud'] = buildCatalogBackedApp(iCloudCatalogApp, {
+    runtimeId: 'virtual-icloud'
+  })
 }
 
 // ============================================================
@@ -244,8 +253,21 @@ async function preWarmCache() {
     console.log(`✅ [预热] 获取到 ${Object.keys(recommendedMeta).length} 个应用的元数据`)
   } catch(e) {}
 
-  console.log('🚀 [预热] 开始后台逐个抓取 34 国价格...')
-  for (const id of RECOMMENDED_IDS) {
+  /**
+   * 启动时不再盲抓所有推荐应用。
+   * 只对“已知有订阅价值”的应用做详情预热：
+   * - 能在兜底 catalog 中命中的（说明历史上确认过是订阅应用）
+   * - 其余应用仍保留 metadata 预热，用户点开时按需实时抓取
+   *
+   * 这样可以显著减少微信等免费/无 IAP 应用浪费的启动时间。
+   */
+  const prewarmTargets = RECOMMENDED_IDS.filter(id => {
+    const meta = recommendedMeta[id]
+    return meta && hasCatalogFallback(id, meta.name)
+  })
+
+  console.log(`🚀 [预热] 开始后台预抓 ${prewarmTargets.length} 个高价值应用的 34 国价格...`)
+  for (const id of prewarmTargets) {
     if (!appCache.getRaw(id)) {
       try {
         console.log(`  正在预抓取: ${recommendedMeta[id]?.name || id}`)
@@ -338,7 +360,23 @@ async function performScrape(appStoreId, silent = false) {
   if (!silent) console.log(`[抓取] ${meta.name} (${appStoreId}) 开始实时抓取 34 国价格...`)
   const start = Date.now()
   const priceData = await scrapeAppPrices(appStoreId, () => {}) // 关闭进度输出防刷屏
-  if (!priceData) throw new Error('该应用无订阅/内购数据')
+  if (!priceData) {
+    const catalogApp = findCatalogApp({ appStoreId, name: meta.name })
+    if (!catalogApp) {
+      throw new Error('该应用无订阅/内购数据')
+    }
+
+    if (!silent) {
+      console.log(`[抓取] ℹ️ ${meta.name} 未抓到 App Store IAP，改用 catalog 兜底套餐: ${catalogApp.id}`)
+    }
+
+    const fallbackResult = buildCatalogBackedApp(catalogApp, {
+      runtimeId: appStoreId,
+      meta
+    })
+    appCache.set(appStoreId, fallbackResult, CACHE_TTL)
+    return fallbackResult
+  }
 
   const elapsed = ((Date.now() - start) / 1000).toFixed(1)
   if (!silent) console.log(`[抓取] ✅ ${meta.name} 完成，${priceData.plans.length} 个套餐，耗时 ${elapsed}s`)
@@ -392,7 +430,7 @@ app.get('/api/app/:appStoreId', readLimiter, async (req, res) => {
         res.json({ success: true, data: cached.data, cached: true, stale: true, refreshing: true, fetchedAt: cached.fetchedAt })
         // 触发后台无缝刷新
         if (!appCache.getInFlight(appStoreId)) {
-          const promise = performScrape()
+          const promise = performScrape(appStoreId, true)
             .catch(e => console.error(`[SWR] 刷新失败 ${appStoreId}:`, e.message))
             .finally(() => appCache.clearInFlight(appStoreId))
           appCache.setInFlight(appStoreId, promise)

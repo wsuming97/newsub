@@ -9,8 +9,9 @@ import SiteNav from '../components/SiteNav.vue'
 const router = useRouter()
 const currentNav = ref('home')
 const isSearchOpen = ref(false)
-const isLoading = ref(false)
+const isLoading = ref(true)
 const regionCount = ref(34)
+const brokenLocalIcons = ref(new Set())
 
 const navItems = [
   { key: 'home', labelKey: 'nav.home', icon: 'home' },
@@ -38,7 +39,90 @@ function switchLanguage(code) {
 
 const loadError = ref('')
 
-  // (moved to polling Mount)
+/**
+ * 首页在冷启动阶段不再直接把“空 icon 的推荐列表”裸展示给用户，
+ * 而是先显示骨架屏，等 /api/apps 首次返回后再渲染真实列表。
+ * 这样可以把“全是占位符头像”的第一印象改成更稳定的加载态。
+ */
+async function loadHomeData(isRetry = false) {
+  if (!isRetry) {
+    isLoading.value = true
+  }
+  loadError.value = ''
+
+  try {
+    const config = await fetchConfig()
+    if (config.regionCount) regionCount.value = config.regionCount
+
+    const data = await fetchApps()
+    if (data && data.length > 0) {
+      apps.value = mergeAppsWithSeed(data)
+    } else if (!apps.value.length) {
+      apps.value = [...RECOMMENDED_APPS]
+    }
+  } catch (error) {
+    console.error('首页加载失败:', error)
+    loadError.value = '首页数据加载失败，请稍后重试'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const LOCAL_ICON_ALIASES = {
+  'ChatGPT': 'chatgpt',
+  'Claude': 'claude',
+  'Grok': 'grok',
+  'Telegram': 'telegram',
+  'X': 'x',
+  'Discord': 'discord',
+  'Snapchat': 'snapchat',
+  'Spotify': 'spotify',
+  'YouTube': 'youtube',
+  'Netflix': 'netflix',
+  'Disney+': 'disney-plus',
+  'Notion': 'notion',
+  'Figma': 'google-gemini',
+  'Dropbox': 'dropbox',
+  'GoodNotes': 'goodnotes',
+  'Canva': 'canva',
+  'Calm': 'calm',
+  'Strava': 'strava',
+  'Headspace': 'headspace',
+  'Duolingo': 'duolingo',
+  'NordVPN': 'nordvpn',
+  'ExpressVPN': 'expressvpn',
+  '1Password': '1password',
+  'iCloud+': 'icloud',
+  'Google Gemini': 'google-gemini',
+  'GitHub Copilot': 'github-copilot',
+}
+
+function resolveLocalIconSlug(name) {
+  if (!name) return ''
+  if (LOCAL_ICON_ALIASES[name]) return LOCAL_ICON_ALIASES[name]
+
+  return name
+    .toLowerCase()
+    .replace(/\+/g, '-plus')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function getAppIcon(app) {
+  if (app?.icon) return app.icon
+
+  const slug = resolveLocalIconSlug(app?.name)
+  if (!slug || brokenLocalIcons.value.has(slug)) return ''
+  return `/icons/${slug}.webp`
+}
+
+function markLocalIconBroken(app) {
+  const slug = resolveLocalIconSlug(app?.name)
+  if (!slug) return
+  const next = new Set(brokenLocalIcons.value)
+  next.add(slug)
+  brokenLocalIcons.value = next
+}
 
 function goToDetail(appStoreId) {
   // 注意：在模板里有些地方传的是 app.id，有些传的是 appStoreId
@@ -53,6 +137,22 @@ function handleSearchSelect(app) {
 }
 
 const apps = ref([...RECOMMENDED_APPS])
+
+function mergeAppsWithSeed(incomingApps = []) {
+  const merged = new Map(
+    RECOMMENDED_APPS.map(app => [app.appStoreId || app.id, { ...app }])
+  )
+
+  for (const app of incomingApps) {
+    const key = app.appStoreId || app.id
+    merged.set(key, {
+      ...(merged.get(key) || {}),
+      ...app,
+    })
+  }
+
+  return Array.from(merged.values())
+}
 
 const groupedApps = computed(() => {
   const catMap = {}
@@ -82,24 +182,17 @@ const stats = computed(() => {
 let pollingInterval = null
 
 onMounted(async () => {
-  try {
-    const config = await fetchConfig()
-    if (config.regionCount) regionCount.value = config.regionCount
-  } catch (e) {
-    console.error('加载配置失败:', e)
-  }
+  await loadHomeData()
   
-  // 首次请求应用列表
-  const data = await fetchApps()
-  if (data && data.length > 0) {
-    apps.value = data
-  }
-  
-  // 开始轮询：每隔 5 秒刷新一次应用列表（为了让后台获取完的 plansCount 和图标能在前台更新）
+  // 开始轮询：每隔 5 秒刷新一次应用列表（为了让后台预热完的 plansCount 和图标能在前台更新）
   pollingInterval = setInterval(async () => {
-    const freshData = await fetchApps()
-    if (freshData && freshData.length > 0) {
-      apps.value = freshData
+    try {
+      const freshData = await fetchApps()
+      if (freshData && freshData.length > 0) {
+        apps.value = mergeAppsWithSeed(freshData)
+      }
+    } catch (error) {
+      console.error('首页轮询刷新失败:', error)
     }
   }, 5000)
 })
@@ -232,7 +325,7 @@ onUnmounted(() => {
             @click="goToDetail(app.appStoreId)"
           >
             <div class="fc-top">
-              <img v-if="app.icon" :src="app.icon" :alt="app.name" class="fc-icon" />
+              <img v-if="getAppIcon(app)" :src="getAppIcon(app)" :alt="app.name" class="fc-icon" @error="markLocalIconBroken(app)" />
               <div v-else class="fc-icon fc-icon-placeholder" :style="{ background: `hsl(${(app.name || '').charCodeAt(0) * 37 % 360}, 55%, 55%)` }">{{ (app.name || '?')[0] }}</div>
               <div class="fc-meta">
                 <h3 class="fc-name">{{ app.name }}</h3>
@@ -383,7 +476,7 @@ onUnmounted(() => {
           >
             <div class="card-body">
               <div class="card-header">
-                <img v-if="app.icon" :src="app.icon" :alt="app.name" class="card-icon" />
+                <img v-if="getAppIcon(app)" :src="getAppIcon(app)" :alt="app.name" class="card-icon" @error="markLocalIconBroken(app)" />
                 <div v-else class="card-icon card-icon-placeholder" :style="{ background: `hsl(${(app.name || '').charCodeAt(0) * 37 % 360}, 55%, 55%)` }">{{ (app.name || '?')[0] }}</div>
                 <div class="card-meta">
                   <h3 class="card-name">{{ app.name }}</h3>
