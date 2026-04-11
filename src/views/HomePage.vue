@@ -232,7 +232,8 @@ onUnmounted(() => {
             @click="goToDetail(app.appStoreId)"
           >
             <div class="fc-top">
-              <img :src="app.icon" :alt="app.name" class="fc-icon" />
+              <img v-if="app.icon" :src="app.icon" :alt="app.name" class="fc-icon" />
+              <div v-else class="fc-icon fc-icon-placeholder" :style="{ background: `hsl(${(app.name || '').charCodeAt(0) * 37 % 360}, 55%, 55%)` }">{{ (app.name || '?')[0] }}</div>
               <div class="fc-meta">
                 <h3 class="fc-name">{{ app.name }}</h3>
                 <span class="fc-company">{{ app.company || 'App Store' }}</span>
@@ -382,7 +383,8 @@ onUnmounted(() => {
           >
             <div class="card-body">
               <div class="card-header">
-                <img :src="app.icon" :alt="app.name" class="card-icon" />
+                <img v-if="app.icon" :src="app.icon" :alt="app.name" class="card-icon" />
+                <div v-else class="card-icon card-icon-placeholder" :style="{ background: `hsl(${(app.name || '').charCodeAt(0) * 37 % 360}, 55%, 55%)` }">{{ (app.name || '?')[0] }}</div>
                 <div class="card-meta">
                   <h3 class="card-name">{{ app.name }}</h3>
                   <p class="card-company">{{ app.company }}</p>
@@ -672,6 +674,15 @@ onUnmounted(() => {
   flex-shrink: 0;
   box-shadow: 0 2px 6px rgba(0,0,0,0.06);
 }
+.fc-icon-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
+}
 .fc-meta { flex: 1; min-width: 0; }
 .fc-name { font-size: 1.05rem; font-weight: 700; color: #0f172a; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fc-company { font-size: 0.8rem; color: #94a3b8; margin: 0.15rem 0 0; }
@@ -839,6 +850,15 @@ onUnmounted(() => {
 .card-body { min-width: 0; }
 .card-header { display: flex; align-items: center; gap: 1rem; width: 100%; }
 .card-icon { flex-shrink: 0; width: 72px; height: 72px; border-radius: 18px; object-fit: cover; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.card-icon-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
+}
 .card-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .card-name { font-size: 1.25rem; font-weight: 700; color: #0f172a; margin: 0 0 0.3rem 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card-company { font-size: 0.85rem; color: #64748b; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

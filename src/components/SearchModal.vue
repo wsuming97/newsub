@@ -173,7 +173,10 @@ onUnmounted(() => {
                 @click="selectApp(app)"
                 @mouseenter="activeIndex = index"
               >
-                <img :src="app.icon || `/icons/${app.id}.webp`" :alt="app.name" class="result-icon" @error="$event.target.src=`/icons/${app.id}.png`" />
+                <img v-if="app.icon" :src="app.icon" :alt="app.name" class="result-icon" @error="$event.target.style.display='none'" />
+                <div v-else class="result-icon result-icon-placeholder" :style="{ background: `hsl(${(app.name || '').charCodeAt(0) * 37 % 360}, 55%, 55%)` }">
+                  {{ (app.name || '?')[0] }}
+                </div>
                 <div class="result-meta">
                   <span class="result-name">{{ app.name }}</span>
                   <span class="result-company">{{ app.developer || app.company || 'App Store' }}</span>
@@ -341,6 +344,16 @@ onUnmounted(() => {
   object-fit: cover;
   flex-shrink: 0;
   box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+
+.result-icon-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
 }
 
 .result-meta {
