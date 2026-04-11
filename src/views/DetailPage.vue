@@ -70,6 +70,25 @@ async function refreshData() {
   setTimeout(() => { isRefreshing.value = false }, 800)
 }
 
+// 刷新汇率：重新从后端拉取最新实时汇率并应用到当前页面的价格换算
+const isRefreshingRates = ref(false)
+async function refreshRates() {
+  if (isRefreshingRates.value) return
+  isRefreshingRates.value = true
+  try {
+    const config = await fetchConfig()
+    if (config.cnyRates) {
+      currencies.value = CURRENCY_META.map(c => ({
+        ...c,
+        rate: c.code === 'CNY' ? 1 : (1 / (config.cnyRates[c.code] || 1))
+      }))
+    }
+  } catch (e) {
+    console.error('刷新汇率失败:', e)
+  }
+  setTimeout(() => { isRefreshingRates.value = false }, 800)
+}
+
 onMounted(async () => {
   loadApp()
   document.addEventListener('click', closeMenuOnOutsideClick)
@@ -323,8 +342,8 @@ function goBack() {
             </div>
           </div>
           
-          <button class="filter-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          <button class="filter-btn" :class="{ spinning: isRefreshingRates }" title="刷新汇率" @click="refreshRates">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
           </button>
         </div>
       </div>
@@ -512,7 +531,7 @@ function goBack() {
   <SearchModal
     :isOpen="isSearchOpen"
     :apps="allApps"
-    @close="isSearchOpen = !isSearchOpen"
+    @close="isSearchOpen = false"
   />
 </template>
 
@@ -765,6 +784,13 @@ function goBack() {
   overflow-x: auto;
   padding-bottom: 1rem;
   margin-bottom: 1rem;
+  /* 允许惯性滚动，触屏体验更流畅 */
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  /* 右侧淡出遮罩提示还有更多套餐 */
+  mask-image: linear-gradient(to right, black calc(100% - 40px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 40px), transparent 100%);
+  padding-right: 40px;
 }
 .plan-pills-scroll::-webkit-scrollbar { display: none; }
 .plan-pill {

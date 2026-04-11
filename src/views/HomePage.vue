@@ -242,7 +242,7 @@ onUnmounted(() => {
     <SearchModal
       :isOpen="isSearchOpen"
       :apps="apps"
-      @close="isSearchOpen = !isSearchOpen"
+      @close="isSearchOpen = false"
     />
 
     <!-- 加载错误提示 -->
