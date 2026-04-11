@@ -83,21 +83,17 @@
 
 **修复**：统一更新三处描述。
 
-**提交**：`待提交`
+**提交**：`ee197d9`
 
 ---
 
-## 🔴 P9 — 全链路 ID 一致性需要持续保障
+## 🟢 P9 — 全链路 ID 一致性需要持续保障（已修复）
 
 **现象**：前端 RECOMMENDED_APPS 的 appStoreId → 后端 RECOMMENDED_IDS → 预热爬取 → 缓存写入 → /api/apps 返回 → /api/app/:id 查询 → 前端 DetailPage 展示，任何一环 ID 不一致就会导致"爬了但前端看不到价格"。
 
-**当前状态**：81 个 ID 已验证同步（2026-04-11），但未来新增应用时需要重复验证。
+**修复方案**：已编写完整的开发脚本 `scripts/verify_ids.js`，自动对比前后端 ID 一致性 + iTunes API 可达性。支持 `--skip-network` 离线模式。
 
-**建议修复**：
-- 增加一个开发脚本 `scripts/verify_ids.js`，自动对比前后端 ID 一致性 + iTunes API 可达性
-- 在 CI/CD 或部署前跑一次，防止 ID 漂移
-
-**相关文件**：`server/index.js`（RECOMMENDED_IDS）、`src/data/api.js`（RECOMMENDED_APPS）
+**相关文件**：`scripts/verify_ids.js`
 
 ---
 
@@ -114,7 +110,7 @@
 ## 备注
 
 - **当前架构**：`实时抓取 + 内存热缓存 + SQLite 持久化缓存`
-- 所有 81 个 RECOMMENDED_IDS 已通过 iTunes API 验证（2026-04-11）
+- 所有 77 个 RECOMMENDED_IDS 已通过 iTunes API 验证（2026-04-11）
 - iCloud+ 虚拟应用的价格数据来源：[support.apple.com/zh-cn/108047](https://support.apple.com/zh-cn/108047)
 - 前后端 ID 同步校验脚本见本次会话记录
 

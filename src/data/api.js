@@ -95,7 +95,7 @@ export async function fetchApps() {
 // 热门推荐应用列表（前端后备展示）
 // - 所有 appStoreId 已通过 iTunes API 验证确认存在
 // - 虚拟应用（如 iCloud）使用 "virtual-xxx" 格式，后端启动时注入缓存
-// - 图标使用占位符，后端 /api/apps 轮询时会替换为真实图标
+// - 图标已通过 iTunes API 批量获取并硬编码为真实 URL
 // ============================================================
 export const RECOMMENDED_APPS = [
   // ─── AI 工具 ─────────────────────────────────────────────────

@@ -13,7 +13,7 @@ import rateLimit from 'express-rate-limit'
 import store from 'app-store-scraper'
 import { appCache } from './cache.js'
 import { COUNTRIES, fetchLiveRates, getCnyRates, scrapeAppPrices, fetchAppMeta } from './scraper.js'
-import { buildCatalogBackedApp, findCatalogApp, getCatalogAppById, hasCatalogFallback } from './fallbackCatalog.js'
+import { buildCatalogBackedApp, findCatalogApp, getCatalogAppById } from './fallbackCatalog.js'
 
 const app = express()
 app.set('trust proxy', 1) // 在 nginx 反向代理后面，允许 X-Forwarded-For
@@ -37,90 +37,10 @@ app.use(cors({
 app.use(express.json())
 
 // ============================================================
-// 虚拟应用（不在 App Store 上架，价格硬编码，启动时注入缓存）
+// 虚拟应用（不在 App Store 上架，价格来自 fallbackCatalog）
+// 启动时由 buildCatalogBackedApp 从 apps.json 注入
 // ============================================================
-const VIRTUAL_APPS = {
-  'virtual-icloud': {
-    id: 'virtual-icloud',
-    name: 'iCloud+',
-    company: 'Apple Inc.',
-    category: 'Cloud Storage',
-    icon: 'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/71/2c/25/712c2562-3108-e1e8-48e9-5665710bba2f/AppIcon-0-0-1x_U007epad-0-1-0-85-220.png/230x0w.webp',
-    description: 'Apple 官方云存储订阅服务。每位 iCloud 用户免费获得 5GB 储存空间，需要更多空间可升级至 iCloud+ 订阅。包含 iCloud 专用代理、隐藏邮件地址和 HomeKit 安防视频等隐私功能。',
-    plansCount: 5,
-    plans: ['50GB', '200GB', '2TB', '6TB', '12TB'],
-    // 价格来源：support.apple.com/zh-cn/108047（2025年数据，实际价格以官网为准）
-    prices: {
-      '50GB': [
-        { region: '土耳其', flag: '🇹🇷', original: '₺14.99', cny: 2.77 },
-        { region: '尼日利亚', flag: '🇳🇬', original: '₦750', cny: 3.75 },
-        { region: '印度', flag: '🇮🇳', original: '₹75', cny: 6.43 },
-        { region: '巴西', flag: '🇧🇷', original: 'R$ 5.90', cny: 7.35 },
-        { region: '墨西哥', flag: '🇲🇽', original: 'MX$17', cny: 6.65 },
-        { region: '阿根廷', flag: '🇦🇷', original: 'ARS 299', cny: 2.19 },
-        { region: '中国大陆', flag: '🇨🇳', original: '¥6', cny: 6 },
-        { region: '中国香港', flag: '🇭🇰', original: 'HK$8', cny: 7.41 },
-        { region: '中国台湾', flag: '🇹🇼', original: 'NT$30', cny: 6.62 },
-        { region: '日本', flag: '🇯🇵', original: '¥130', cny: 6.05 },
-        { region: '韩国', flag: '🇰🇷', original: '₩1,100', cny: 5.68 },
-        { region: '马来西亚', flag: '🇲🇾', original: 'RM4.90', cny: 7.43 },
-        { region: '泰国', flag: '🇹🇭', original: '฿35', cny: 7.14 },
-        { region: '新加坡', flag: '🇸🇬', original: 'S$1.48', cny: 7.86 },
-        { region: '澳大利亚', flag: '🇦🇺', original: 'A$1.49', cny: 6.90 },
-        { region: '美国', flag: '🇺🇸', original: '$0.99', cny: 7.17 },
-        { region: '加拿大', flag: '🇨🇦', original: 'CA$1.29', cny: 6.65 },
-        { region: '英国', flag: '🇬🇧', original: '£0.99', cny: 9.16 },
-        { region: '德国', flag: '🇩🇪', original: '€1.19', cny: 9.00 },
-        { region: '法国', flag: '🇫🇷', original: '€1.19', cny: 9.00 },
-        { region: '沙特阿拉伯', flag: '🇸🇦', original: 'SAR3.99', cny: 7.52 },
-        { region: '阿联酋', flag: '🇦🇪', original: 'AED3.99', cny: 7.68 },
-      ],
-      '200GB': [
-        { region: '土耳其', flag: '🇹🇷', original: '₺44.99', cny: 8.34 },
-        { region: '尼日利亚', flag: '🇳🇬', original: '₦2,200', cny: 11.01 },
-        { region: '印度', flag: '🇮🇳', original: '₹219', cny: 18.78 },
-        { region: '巴西', flag: '🇧🇷', original: 'R$ 16.90', cny: 21.04 },
-        { region: '中国大陆', flag: '🇨🇳', original: '¥21', cny: 21 },
-        { region: '中国香港', flag: '🇭🇰', original: 'HK$23', cny: 21.31 },
-        { region: '中国台湾', flag: '🇹🇼', original: 'NT$90', cny: 19.86 },
-        { region: '日本', flag: '🇯🇵', original: '¥400', cny: 18.61 },
-        { region: '韩国', flag: '🇰🇷', original: '₩3,300', cny: 17.05 },
-        { region: '新加坡', flag: '🇸🇬', original: 'S$3.98', cny: 21.14 },
-        { region: '澳大利亚', flag: '🇦🇺', original: 'A$4.49', cny: 20.79 },
-        { region: '美国', flag: '🇺🇸', original: '$2.99', cny: 21.66 },
-        { region: '英国', flag: '🇬🇧', original: '£2.49', cny: 23.03 },
-        { region: '德国', flag: '🇩🇪', original: '€2.99', cny: 22.62 },
-      ],
-      '2TB': [
-        { region: '土耳其', flag: '🇹🇷', original: '₺134.99', cny: 25.02 },
-        { region: '印度', flag: '🇮🇳', original: '₹749', cny: 64.24 },
-        { region: '巴西', flag: '🇧🇷', original: 'R$ 54.90', cny: 68.35 },
-        { region: '中国大陆', flag: '🇨🇳', original: '¥68', cny: 68 },
-        { region: '中国香港', flag: '🇭🇰', original: 'HK$78', cny: 72.27 },
-        { region: '中国台湾', flag: '🇹🇼', original: 'NT$290', cny: 63.99 },
-        { region: '日本', flag: '🇯🇵', original: '¥1,300', cny: 60.49 },
-        { region: '韩国', flag: '🇰🇷', original: '₩11,000', cny: 56.83 },
-        { region: '新加坡', flag: '🇸🇬', original: 'S$13.98', cny: 74.27 },
-        { region: '澳大利亚', flag: '🇦🇺', original: 'A$14.99', cny: 69.38 },
-        { region: '美国', flag: '🇺🇸', original: '$9.99', cny: 72.33 },
-        { region: '英国', flag: '🇬🇧', original: '£8.99', cny: 83.12 },
-        { region: '德国', flag: '🇩🇪', original: '€9.99', cny: 75.58 },
-      ],
-      '6TB': [
-        { region: '中国大陆', flag: '🇨🇳', original: '¥198', cny: 198 },
-        { region: '美国', flag: '🇺🇸', original: '$32.99', cny: 238.83 },
-        { region: '英国', flag: '🇬🇧', original: '£29.99', cny: 277.27 },
-        { region: '德国', flag: '🇩🇪', original: '€32.99', cny: 249.55 },
-      ],
-      '12TB': [
-        { region: '中国大陆', flag: '🇨🇳', original: '¥398', cny: 398 },
-        { region: '美国', flag: '🇺🇸', original: '$64.99', cny: 470.57 },
-        { region: '英国', flag: '🇬🇧', original: '£59.99', cny: 554.81 },
-        { region: '德国', flag: '🇩🇪', original: '€64.99', cny: 491.69 },
-      ]
-    }
-  }
-}
+const VIRTUAL_APPS = {}
 
 // 用统一 catalog 覆盖 iCloud+ 的旧手写结构，保证它与真实应用的 plans/prices 结构一致。
 const iCloudCatalogApp = getCatalogAppById('icloud')
