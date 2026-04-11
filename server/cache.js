@@ -295,6 +295,8 @@ function flushAllCaches() {
 
 process.once('beforeExit', flushAllCaches)
 process.once('exit', flushAllCaches)
+process.once('SIGINT', () => { flushAllCaches(); process.exit(0); })
+process.once('SIGTERM', () => { flushAllCaches(); process.exit(0); })
 
 export { DATA_DIR, DB_PATH }
 export default Cache

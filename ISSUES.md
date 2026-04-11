@@ -101,37 +101,19 @@
 
 ---
 
-## 🔴 P10 — 持久化层从 JSON 升级为 SQLite
+## 🟢 P10 — 持久化层从 JSON 升级为 SQLite（已修复）
 
 **背景**：应用数量已扩展到 100+，JSON 整文件读写在并发和数据量上存在瓶颈。
 
-**当前状态**：`app_cache.json` 单文件存储所有应用的价格数据，每次写入都是全量序列化。
+**修复方案**：已完整利用 `better-sqlite3` 实现高性能异步缓存底座 `server/db.js`。采用 WAL 模式，实现了写后内存更新并在后台以短时延迟小批量异步落盘。成功重写了 `server/cache.js` 对接，并在最后关机前和 SIGTERM 退出时设置了强制 flush。实现了完美的向下兼容：如果在 SQLite 里没找到数据，第一次启动会自动吸纳解析旧版的 JSON（app_cache.json / rates_cache.json）。
 
-**目标架构**：`实时抓取 + 内存热缓存 + SQLite 持久化缓存`
-
-**升级要点**：
-- 用 SQLite `better-sqlite3` 替换 JSON 文件读写
-- 表结构：`apps (id, name, icon, category, prices_json, updated_at, ttl)`
-- 支持按 ID 单条读写，避免全量序列化
-- 保留内存热缓存 + SWR 策略不变，SQLite 只替换 JSON 落盘层
-- 启动时从 SQLite 回填内存缓存
-- 价格数据字段 `prices_json` 使用 TEXT 存储 JSON 字符串，查询时按需解析
-
-**迁移步骤**：
-1. 新建 `server/db.js`，封装 SQLite CRUD
-2. 修改 `server/cache.js`，将 `loadFromDisk / saveToDisk` 替换为 SQLite 操作
-3. 保留 `./data/` 目录用于 SQLite 数据库文件 `youhu.db`
-4. Docker volume 映射不变（`./data:/app/data`）
-5. 验证容器重启后数据持久化
-
-**相关文件**：`server/cache.js`、`docker-compose.yml`
+**相关文件**：`server/cache.js`、`server/db.js`
 
 ---
 
 ## 备注
 
-- **当前架构**：`实时抓取 + 内存热缓存 + JSON 持久化缓存`
-- **目标架构**：`实时抓取 + 内存热缓存 + SQLite 持久化缓存`（见 P10）
+- **当前架构**：`实时抓取 + 内存热缓存 + SQLite 持久化缓存`
 - 所有 81 个 RECOMMENDED_IDS 已通过 iTunes API 验证（2026-04-11）
 - iCloud+ 虚拟应用的价格数据来源：[support.apple.com/zh-cn/108047](https://support.apple.com/zh-cn/108047)
 - 前后端 ID 同步校验脚本见本次会话记录
