@@ -9,8 +9,9 @@ services:
       NODE_ENV: production
       # CORS 白名单：限制允许访问后端 API 的前端域名，多个用逗号分隔
       CORS_ORIGIN: ${CORS_ORIGIN:-}
-      # 持久化缓存目录：后端会将 app_cache.json / rates_cache.json 写到这里
+      # 持久化缓存目录：缓存数据库与未来迁移产物都统一写在这里
       CACHE_DIR: /app/data
+      CACHE_DB_PATH: /app/data/cache.db
     volumes:
       - ./data:/app/data
     healthcheck:

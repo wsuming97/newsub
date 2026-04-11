@@ -62,7 +62,7 @@ const messages = {
     app: {
       categories: '分类',
       plansCount: '{count} 个套餐',
-      zeroPlans: '0 个套餐'
+      zeroPlans: '暂无数据'
     }
   },
   en: {
@@ -126,7 +126,7 @@ const messages = {
     app: {
       categories: 'Categories',
       plansCount: '{count} plans',
-      zeroPlans: '0 plans'
+      zeroPlans: 'No data'
     }
   }
 }

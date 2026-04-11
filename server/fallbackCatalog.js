@@ -56,6 +56,15 @@ const APP_STORE_ID_TO_CATALOG_ID = {
   '570060128': 'duolingo',
   '1511601750': '1password',
   'virtual-icloud': 'icloud',
+  // Website subscriptions fallback
+  '1174078549': 'appletv',
+  '1152747299': 'figma',
+  '618783545': 'slack',
+  '461504587': 'trello',
+  '489969512': 'asana',
+  '1290128888': 'monday',
+  '938003185': 'robinhood',
+  '719972451': 'doordash',
 }
 
 export function getCatalogAppById(id) {

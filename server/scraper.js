@@ -1,8 +1,10 @@
+import { ratesCache } from './cache.js'
+
 /**
  * Youhu 实时价格抓取引擎
  * 
  * 核心模块：从 App Store 页面实时抓取 IAP 价格，从 Frankfurter API 获取实时汇率。
- * 抓取结果通过 Cache 层写入内存热缓存 + JSON 持久化文件，支持 SWR 后台刷新。
+ * 抓取结果通过 Cache 层写入内存热缓存 + SQLite 持久化缓存，支持 SWR 后台刷新。
  */
 
 // ============================================================
@@ -62,8 +64,11 @@ const FALLBACK_RATES = {
   SAR: 1.931, AED: 1.972,
 }
 
-// 活跃汇率表（启动后由 fetchLiveRates 覆盖）
-let cnyRates = { ...FALLBACK_RATES }
+// 活跃汇率表优先从持久化缓存恢复，避免外部汇率接口短暂波动时完全回退到离线兜底值。
+const persistedRates = ratesCache.get('live-rates')?.data
+let cnyRates = persistedRates?.rates
+  ? { ...FALLBACK_RATES, ...persistedRates.rates }
+  : { ...FALLBACK_RATES }
 
 /**
  * 获取当前汇率表（只读，供外部使用）
@@ -88,8 +93,12 @@ export async function fetchLiveRates() {
     for (const [code, val] of Object.entries(data.rates)) {
       if (val > 0) live[code] = parseFloat((1 / val).toFixed(6))
     }
-    // 实时数据覆盖兜底值，Frankfurter 未覆盖的小币种保留兜底
+    // 实时数据覆盖兜底值，Frankfurter 未覆盖的小币种保留兜底。
     cnyRates = { ...FALLBACK_RATES, ...live }
+    ratesCache.set('live-rates', {
+      date: data.date,
+      rates: cnyRates,
+    }, 12 * 60 * 60 * 1000)
     console.log(`✅ 实时汇率已加载（${data.date}，${Object.keys(live).length} 个币种）`)
     return cnyRates
   } catch (e) {

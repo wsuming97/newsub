@@ -133,7 +133,6 @@ export const RECOMMENDED_APPS = [
   { appStoreId: '336353151', name: 'SoundCloud', icon: '', category: 'Music', plansCount: 0 },
   { appStoreId: '292738169', name: 'Deezer', icon: '', category: 'Music', plansCount: 0 },
   { appStoreId: '913943275', name: 'TIDAL', icon: '', category: 'Music', plansCount: 0 },
-  { appStoreId: '284993459', name: 'Shazam', icon: '', category: 'Music', plansCount: 0 },
   // ─── 办公效率 ─────────────────────────────────────────────────
   { appStoreId: '586447913', name: 'Microsoft Word', icon: '', category: 'Productivity', plansCount: 0 },
   { appStoreId: '586683407', name: 'Microsoft Excel', icon: '', category: 'Productivity', plansCount: 0 },
@@ -158,7 +157,6 @@ export const RECOMMENDED_APPS = [
   { appStoreId: '409838725', name: 'Splice', icon: '', category: 'Photo & Video', plansCount: 0 },
   { appStoreId: '953286746', name: 'Darkroom', icon: '', category: 'Photo & Video', plansCount: 0 },
   { appStoreId: '1062022008', name: 'LumaFusion', icon: '', category: 'Photo & Video', plansCount: 0 },
-  { appStoreId: '916366645', name: 'Procreate Pocket', icon: '', category: 'Graphics & Design', plansCount: 0 },
   { appStoreId: '878783582', name: 'Adobe Lightroom', icon: '', category: 'Photo & Video', plansCount: 0 },
   // ─── 健康健身 ─────────────────────────────────────────────────
   { appStoreId: '571800810', name: 'Calm', icon: '', category: 'Health & Fitness', plansCount: 0 },
@@ -171,7 +169,6 @@ export const RECOMMENDED_APPS = [
   { appStoreId: '435588892', name: 'Rosetta Stone', icon: '', category: 'Education', plansCount: 0 },
   { appStoreId: '829587759', name: 'Babbel', icon: '', category: 'Education', plansCount: 0 },
   { appStoreId: '919087726', name: 'Photomath', icon: '', category: 'Education', plansCount: 0 },
-  { appStoreId: '469863705', name: 'Khan Academy', icon: '', category: 'Education', plansCount: 0 },
   { appStoreId: '1084807225', name: 'LinkedIn Learning', icon: '', category: 'Education', plansCount: 0 },
   // ─── VPN / 安全 ────────────────────────────────────────────────
   { appStoreId: '905953485', name: 'NordVPN', icon: '', category: 'Utilities', plansCount: 0 },
@@ -187,7 +184,6 @@ export const RECOMMENDED_APPS = [
   // ─── 生活出行 ─────────────────────────────────────────────────
   { appStoreId: '429047995', name: 'Pinterest', icon: '', category: 'Lifestyle', plansCount: 0 },
   { appStoreId: '585027354', name: 'Google Maps', icon: '', category: 'Navigation', plansCount: 0 },
-  { appStoreId: '529379082', name: 'Lyft', icon: '', category: 'Travel', plansCount: 0 },
   { appStoreId: '719972451', name: 'DoorDash', icon: '', category: 'Food & Drink', plansCount: 0 },
   // ─── 游戏 ─────────────────────────────────────────────────────
   { appStoreId: '1053012308', name: 'Clash Royale', icon: '', category: 'Games', plansCount: 0 },

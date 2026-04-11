@@ -13146,5 +13146,181 @@
         }
       ]
     }
+  },
+  {
+    "id": "appletv",
+    "name": "Apple TV+",
+    "company": "",
+    "category": "Website",
+    "icon": "",
+    "description": "由于 Apple 政策，此应用的订阅需要前往官网完成。",
+    "plansCount": 1,
+    "plans": [
+      "此应用需前往官网订阅"
+    ],
+    "prices": {
+      "此应用需前往官网订阅": [
+        {
+          "region": "全球",
+          "flag": "🌐",
+          "original": "tv.apple.com",
+          "cny": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "figma",
+    "name": "Figma",
+    "company": "",
+    "category": "Website",
+    "icon": "",
+    "description": "由于 Apple 政策，此应用的订阅需要前往官网完成。",
+    "plansCount": 1,
+    "plans": [
+      "此应用需前往官网订阅"
+    ],
+    "prices": {
+      "此应用需前往官网订阅": [
+        {
+          "region": "全球",
+          "flag": "🌐",
+          "original": "figma.com",
+          "cny": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "slack",
+    "name": "Slack",
+    "company": "",
+    "category": "Website",
+    "icon": "",
+    "description": "由于 Apple 政策，此应用的订阅需要前往官网完成。",
+    "plansCount": 1,
+    "plans": [
+      "此应用需前往官网订阅"
+    ],
+    "prices": {
+      "此应用需前往官网订阅": [
+        {
+          "region": "全球",
+          "flag": "🌐",
+          "original": "slack.com",
+          "cny": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "trello",
+    "name": "Trello",
+    "company": "",
+    "category": "Website",
+    "icon": "",
+    "description": "由于 Apple 政策，此应用的订阅需要前往官网完成。",
+    "plansCount": 1,
+    "plans": [
+      "此应用需前往官网订阅"
+    ],
+    "prices": {
+      "此应用需前往官网订阅": [
+        {
+          "region": "全球",
+          "flag": "🌐",
+          "original": "trello.com",
+          "cny": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "asana",
+    "name": "Asana",
+    "company": "",
+    "category": "Website",
+    "icon": "",
+    "description": "由于 Apple 政策，此应用的订阅需要前往官网完成。",
+    "plansCount": 1,
+    "plans": [
+      "此应用需前往官网订阅"
+    ],
+    "prices": {
+      "此应用需前往官网订阅": [
+        {
+          "region": "全球",
+          "flag": "🌐",
+          "original": "asana.com",
+          "cny": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "monday",
+    "name": "monday.com",
+    "company": "",
+    "category": "Website",
+    "icon": "",
+    "description": "由于 Apple 政策，此应用的订阅需要前往官网完成。",
+    "plansCount": 1,
+    "plans": [
+      "此应用需前往官网订阅"
+    ],
+    "prices": {
+      "此应用需前往官网订阅": [
+        {
+          "region": "全球",
+          "flag": "🌐",
+          "original": "monday.com",
+          "cny": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "robinhood",
+    "name": "Robinhood",
+    "company": "",
+    "category": "Website",
+    "icon": "",
+    "description": "由于 Apple 政策，此应用的订阅需要前往官网完成。",
+    "plansCount": 1,
+    "plans": [
+      "此应用需前往官网订阅"
+    ],
+    "prices": {
+      "此应用需前往官网订阅": [
+        {
+          "region": "全球",
+          "flag": "🌐",
+          "original": "robinhood.com",
+          "cny": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "doordash",
+    "name": "DoorDash",
+    "company": "",
+    "category": "Website",
+    "icon": "",
+    "description": "由于 Apple 政策，此应用的订阅需要前往官网完成。",
+    "plansCount": 1,
+    "plans": [
+      "此应用需前往官网订阅"
+    ],
+    "prices": {
+      "此应用需前往官网订阅": [
+        {
+          "region": "全球",
+          "flag": "🌐",
+          "original": "doordash.com",
+          "cny": 0
+        }
+      ]
+    }
   }
 ]

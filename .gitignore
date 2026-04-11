@@ -35,6 +35,7 @@ Thumbs.db
 # === 日志 ===
 *.log
 npm-debug.log*
+.npm-cache/
 
 # === 旧版静态数据回退文件（已有数据库，不再需要）===
 src/data/apps-static.js

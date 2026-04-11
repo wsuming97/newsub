@@ -1,9 +1,9 @@
 /**
  * Youhu 后端 API 服务 v2
  * 
- * 架构：实时抓取 + 内存热缓存 + JSON 持久化缓存
+ * 架构：实时抓取 + 内存热缓存 + SQLite 持久化缓存
  * - 用户搜索 → iTunes Search API
- * - 用户查看详情 → 实时抓取 34 国价格 → 内存缓存 + 落盘 app_cache.json
+ * - 用户查看详情 → 实时抓取 34 国价格 → 内存缓存 + 落盘 SQLite cache.db
  * - SWR 策略：缓存 24h，过期后返回旧值并后台刷新
  * - 虚拟应用（iCloud 等）：硬编码价格，启动时注入缓存
  */
@@ -11,7 +11,7 @@ import express from 'express'
 import cors from 'cors'
 import rateLimit from 'express-rate-limit'
 import store from 'app-store-scraper'
-import { appCache, ratesCache } from './cache.js'
+import { appCache } from './cache.js'
 import { COUNTRIES, fetchLiveRates, getCnyRates, scrapeAppPrices, fetchAppMeta } from './scraper.js'
 import { buildCatalogBackedApp, findCatalogApp, getCatalogAppById, hasCatalogFallback } from './fallbackCatalog.js'
 
@@ -167,7 +167,6 @@ const RECOMMENDED_IDS = [
   '336353151',   // SoundCloud
   '292738169',   // Deezer
   '913943275',   // TIDAL
-  '284993459',   // Shazam
   // ─── 办公效率（已验证）─────────────────────────────────────
   '586447913',   // Microsoft Word
   '586683407',   // Microsoft Excel
@@ -192,7 +191,6 @@ const RECOMMENDED_IDS = [
   '409838725',   // Splice
   '953286746',   // Darkroom
   '1062022008',  // LumaFusion
-  '916366645',   // Procreate Pocket
   '878783582',   // Adobe Lightroom
   // ─── 健康健身（已验证）─────────────────────────────────────
   '571800810',   // Calm
@@ -205,7 +203,6 @@ const RECOMMENDED_IDS = [
   '435588892',   // Rosetta Stone
   '829587759',   // Babbel
   '919087726',   // Photomath
-  '469863705',   // Khan Academy
   '1084807225',  // LinkedIn Learning
   // ─── VPN / 安全（已验证）───────────────────────────────────
   '905953485',   // NordVPN
@@ -221,7 +218,6 @@ const RECOMMENDED_IDS = [
   // ─── 生活出行（已验证）─────────────────────────────────────
   '429047995',   // Pinterest
   '585027354',   // Google Maps
-  '529379082',   // Lyft
   '719972451',   // DoorDash
   // ─── 游戏（已验证）─────────────────────────────────────────
   '1053012308',  // Clash Royale
@@ -448,7 +444,7 @@ app.get('/api/app/:appStoreId', readLimiter, async (req, res) => {
     }
 
     // 3. 全局全新请求
-    scrapePromise = performScrape().finally(() => appCache.clearInFlight(appStoreId))
+    scrapePromise = performScrape(appStoreId).finally(() => appCache.clearInFlight(appStoreId))
     appCache.setInFlight(appStoreId, scrapePromise)
 
     const data = await scrapePromise
@@ -508,5 +504,5 @@ app.get('/api/apps', readLimiter, (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Youhu API v2 已启动 → http://0.0.0.0:${PORT}`)
   console.log(`📊 接口: /api/search | /api/app/:id | /api/config | /api/apps`)
-  console.log(`🗄️  模式: 实时抓取 + 内存热缓存 + JSON 持久化`)
+  console.log(`🗄️  模式: 实时抓取 + 内存热缓存 + SQLite 持久化`)
 })

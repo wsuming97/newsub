@@ -14,8 +14,11 @@ RUN npm run build
 # ============================================================
 FROM node:20-alpine AS backend-build
 
+RUN apk add --no-cache python3 make g++
+
 WORKDIR /build/server
 COPY server/package.json ./
+COPY server/package-lock.json* ./
 RUN npm install --omit=dev
 
 # ============================================================
@@ -27,6 +30,7 @@ RUN apk add --no-cache nginx supervisor
 
 WORKDIR /app
 ENV CACHE_DIR=/app/data
+ENV CACHE_DB_PATH=/app/data/cache.db
 
 # Frontend build output
 COPY --from=frontend-build /build/dist /app/dist
@@ -38,12 +42,12 @@ COPY --from=backend-build /build/server/node_modules /app/server/node_modules
 # Nginx config
 COPY nginx.conf /etc/nginx/http.d/default.conf
 
-# Persistent cache directory
+# Persistent cache directory / SQLite cache directory
 RUN mkdir -p /app/data
 
 # Supervisor config: run Nginx + Node API together
 RUN mkdir -p /etc/supervisor.d
-RUN echo -e "[supervisord]\nnodaemon=true\nlogfile=/dev/null\nlogfile_maxbytes=0\n\n[program:nginx]\ncommand=nginx -g 'daemon off;'\nautorestart=true\nstdout_logfile=/dev/stdout\nstdout_logfile_maxbytes=0\nstderr_logfile=/dev/stderr\nstderr_logfile_maxbytes=0\n\n[program:api]\ncommand=node /app/server/index.js\ndirectory=/app/server\nautorestart=true\nenvironment=NODE_ENV=production,CACHE_DIR=/app/data\nstdout_logfile=/dev/stdout\nstdout_logfile_maxbytes=0\nstderr_logfile=/dev/stderr\nstderr_logfile_maxbytes=0" > /etc/supervisord.conf
+RUN echo -e "[supervisord]\nnodaemon=true\nlogfile=/dev/null\nlogfile_maxbytes=0\n\n[program:nginx]\ncommand=nginx -g 'daemon off;'\nautorestart=true\nstdout_logfile=/dev/stdout\nstdout_logfile_maxbytes=0\nstderr_logfile=/dev/stderr\nstderr_logfile_maxbytes=0\n\n[program:api]\ncommand=node /app/server/index.js\ndirectory=/app/server\nautorestart=true\nenvironment=NODE_ENV=production,CACHE_DIR=/app/data,CACHE_DB_PATH=/app/data/cache.db\nstdout_logfile=/dev/stdout\nstdout_logfile_maxbytes=0\nstderr_logfile=/dev/stderr\nstderr_logfile_maxbytes=0" > /etc/supervisord.conf
 
 EXPOSE 80
 

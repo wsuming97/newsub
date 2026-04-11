@@ -6,7 +6,7 @@
 
 - 前端搜索和展示应用
 - 后端按需实时抓取 34 个国家或地区的价格
-- 结果同时写入内存热缓存和 JSON 持久化缓存
+- 结果同时写入内存热缓存和 SQLite 持久化缓存
 - 汇率优先走实时接口，失败时回退到内置默认值
 
 ## 当前架构
@@ -19,7 +19,7 @@
       -> App Store 页面实时抓取
       -> 实时汇率 API
       -> 内存缓存（Map + TTL）
-      -> JSON 持久化缓存（/app/data/*.json）
+      -> SQLite 持久化缓存（/app/data/cache.db）
 ```
 
 ### 技术栈
@@ -28,7 +28,7 @@
 |---|---|
 | 前端 | Vue 3 + Vite + vue-router + vue-i18n + html2canvas |
 | 后端 | Express + app-store-scraper |
-| 缓存 | 内存 `Map + TTL` + JSON 持久化缓存 |
+| 缓存 | 内存 `Map + TTL` + SQLite 持久化缓存 |
 | 缓存策略 | In-Flight Dedup + Stale-While-Revalidate |
 | 汇率 | 实时汇率 API + fallback 默认值 |
 | 部署 | Docker + Nginx + Supervisor 单容器 |
@@ -42,7 +42,7 @@
 - 历史数据库重算链路
 - 历史定时巡检更新链路
 
-也就是说，当前系统的真值源是实时抓取结果，JSON 只作为持久化缓存层。
+也就是说，当前系统的真值源是实时抓取结果，SQLite 只作为持久化缓存层。
 
 ## 运行机制
 
@@ -61,7 +61,7 @@
 
 - 详情页调用 `/api/app/:appStoreId`
 - 如果内存缓存命中，直接返回
-- 如果 JSON 持久化缓存命中，也会快速返回，并回填内存
+- 如果 SQLite 持久化缓存命中，也会快速返回，并回填内存
 - 如果缓存过期但仍在容忍期内，先返回旧值，同时后台静默刷新
 - 如果完全没有缓存，后端会实时抓取该应用在 34 个国家或地区的价格
 - 首次抓取可能需要 15 到 30 秒
@@ -72,10 +72,10 @@
 - 持久化缓存保存在 `CACHE_DIR` 指向的目录中，默认是：
   - 本地开发：`<repo>/data`
   - 容器内：`/app/data`
-- 持久化文件包括：
-  - `app_cache.json`
-  - `rates_cache.json`
-- 写盘采用防抖和原子替换，避免高频写入和半写入损坏 JSON
+- SQLite 缓存数据库默认文件是：
+  - `cache.db`
+- 启动时会优先从 SQLite 恢复缓存，再按需将旧 JSON 缓存平滑迁移到 SQLite
+- 写入改为单条记录 upsert，不再全量序列化整个缓存文件
 
 ### SWR（Stale-While-Revalidate）
 
@@ -262,8 +262,7 @@ youhu/
 │   ├── cache.js
 │   └── package.json
 ├── data/
-│   ├── app_cache.json
-│   └── rates_cache.json
+│   └── cache.db
 ├── Dockerfile
 ├── docker-compose.yml
 ├── nginx.conf
@@ -284,7 +283,7 @@ youhu/
 2. 删除未使用调试文件和旧组件。
 3. 给首页也补充“缓存预热 / 静默刷新”的更明显状态提示。
 4. 决定是否要继续往前走一步，引入更细粒度的缓存清理策略。
-5. 视访问量决定是否需要从 JSON 缓存升级到 SQLite 或 Redis。
+5. 视访问量决定是否需要从单机 SQLite 缓存继续升级到 Redis 等多实例共享缓存。
 
 ## 免责声明
 

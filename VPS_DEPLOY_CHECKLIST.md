@@ -2,7 +2,7 @@
 
 ## 1. 发布前检查
 
-- 已确认当前版本是“实时抓取 + JSON 持久化缓存”，不是 SQLite 灌库版本
+- 已确认当前版本是“实时抓取 + SQLite 持久化缓存”，不是旧的 SQLite 灌库版本
 - 已完成一次本地前端构建验证：`npm run build -- --configLoader native`
 - 已确认后端语法通过：`node --check server/index.js`
 - 已确认服务器开放目标端口，例如 `8080`，或已准备好宿主机反代后的 `80/443`
@@ -61,8 +61,7 @@ docker exec youhu ls -lah /app/data
 
 正确结果应该包括：
 
-- `app_cache.json`
-- `rates_cache.json`
+- `cache.db`
 
 然后再次重建容器验证缓存是否仍在：
 
@@ -129,7 +128,7 @@ https://你的域名
 当前架构没有价格数据库，回滚重点是：
 
 - 回滚代码版本
-- 保留 `data/` 目录中的 JSON 缓存文件
+- 保留 `data/` 目录中的 SQLite 缓存数据库
 
 最小回滚步骤：
 
