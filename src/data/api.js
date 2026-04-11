@@ -26,9 +26,10 @@ async function parseJsonSafely(response) {
 
 /**
  * 获取全局配置（实时汇率 + 地区列表）
+ * @param {boolean} force 强制跳过缓存，重新请求后端
  */
-export async function fetchConfig() {
-  if (configCache) return configCache
+export async function fetchConfig(force = false) {
+  if (!force && configCache) return configCache
   try {
     const res = await fetch(`${API_BASE}/config`)
     const json = await parseJsonSafely(res)

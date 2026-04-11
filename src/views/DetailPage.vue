@@ -76,7 +76,7 @@ async function refreshRates() {
   if (isRefreshingRates.value) return
   isRefreshingRates.value = true
   try {
-    const config = await fetchConfig()
+    const config = await fetchConfig(true)
     if (config.cnyRates) {
       currencies.value = CURRENCY_META.map(c => ({
         ...c,
@@ -775,33 +775,36 @@ function goBack() {
   border-radius: 8px;
   color: #475569;
   cursor: pointer;
+  transition: all 0.3s;
+}
+.filter-btn:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+.filter-btn.spinning svg {
+  animation: spin 1s linear infinite;
+  color: var(--primary-color, #2563eb);
 }
 
-/* === 套餐对比模式的横排胶囊 === */
+/* === 套餐对比模式的标签区域（换行显示所有套餐） === */
 .plan-pills-scroll {
   display: flex;
-  gap: 0.75rem;
-  overflow-x: auto;
-  padding-bottom: 1rem;
-  margin-bottom: 1rem;
-  /* 允许惯性滚动，触屏体验更流畅 */
-  -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
-  /* 右侧淡出遮罩提示还有更多套餐 */
-  mask-image: linear-gradient(to right, black calc(100% - 40px), transparent 100%);
-  -webkit-mask-image: linear-gradient(to right, black calc(100% - 40px), transparent 100%);
-  padding-right: 40px;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.75rem;
 }
 .plan-pills-scroll::-webkit-scrollbar { display: none; }
 .plan-pill {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.35rem;
   background: white;
   border: 1px solid #e2e8f0;
-  padding: 0.6rem 1.2rem;
+  padding: 0.4rem 0.8rem;
   border-radius: 999px;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: #475569;
   cursor: pointer;
