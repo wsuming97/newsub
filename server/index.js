@@ -249,19 +249,9 @@ async function preWarmCache() {
     console.log(`✅ [预热] 获取到 ${Object.keys(recommendedMeta).length} 个应用的元数据`)
   } catch(e) {}
 
-  /**
-   * 启动时不再盲抓所有推荐应用。
-   * 只对“已知有订阅价值”的应用做详情预热：
-   * - 能在兜底 catalog 中命中的（说明历史上确认过是订阅应用）
-   * - 其余应用仍保留 metadata 预热，用户点开时按需实时抓取
-   *
-   * 这样可以显著减少微信等免费/无 IAP 应用浪费的启动时间。
-   */
-  const prewarmTargets = RECOMMENDED_IDS.filter(id => {
-    const meta = recommendedMeta[id]
-    return meta && hasCatalogFallback(id, meta.name)
-  })
-
+  // 当前 RECOMMENDED_IDS 已过滤掉纯免费无内购应用，所有剩下的要么有 App Store IAP 要么有 fallback
+  const prewarmTargets = RECOMMENDED_IDS
+  
   console.log(`🚀 [预热] 开始后台预抓 ${prewarmTargets.length} 个高价值应用的 34 国价格...`)
   for (const id of prewarmTargets) {
     if (!appCache.getRaw(id)) {
