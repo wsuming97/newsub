@@ -12,7 +12,7 @@ import cors from 'cors'
 import rateLimit from 'express-rate-limit'
 import store from 'app-store-scraper'
 import { appCache } from './cache.js'
-import { COUNTRIES, fetchLiveRates, getCnyRates, scrapeAppPrices, fetchAppMeta } from './scraper.js'
+import { COUNTRIES, fetchLiveRates, getCnyRates, scrapeAppPrices, scrapePaidAppPrices, fetchAppMeta } from './scraper.js'
 import { buildCatalogBackedApp, findCatalogApp, getCatalogAppById } from './fallbackCatalog.js'
 
 const app = express()
@@ -129,6 +129,11 @@ const RECOMMENDED_IDS = [
   '886492891',   // ExpressVPN
   '1391782046',  // Surfshark
   '1511601750',  // 1Password
+  // ─── 代理工具（已验证）─────────────────────────────────────
+  '1443988620',  // Quantumult X（圈X）
+  '1373567447',  // Loon
+  '932747118',   // Shadowrocket（小火箭）
+  '1442620678',  // Surge 5
   // ─── 金融理财（已验证）─────────────────────────────────────
   '1010865877',  // YNAB
   '938003185',   // Robinhood
@@ -267,6 +272,24 @@ async function performScrape(appStoreId, silent = false) {
   const start = Date.now()
   const priceData = await scrapeAppPrices(appStoreId, () => {}) // 关闭进度输出防刷屏
   if (!priceData) {
+    // 第二层尝试：买断制应用用 iTunes Lookup API 抓各区购买价
+    if (!silent) console.log(`[抓取] ℹ️ ${meta.name} 无 IAP，尝试抓取买断价...`)
+    const paidData = await scrapePaidAppPrices(appStoreId, () => {})
+    if (paidData) {
+      const elapsed = ((Date.now() - start) / 1000).toFixed(1)
+      if (!silent) console.log(`[抓取] ✅ ${meta.name} 买断价抓取完成，${paidData.prices[paidData.plans[0]]?.length} 个地区，耗时 ${elapsed}s`)
+      const result = {
+        id: appStoreId,
+        ...meta,
+        plansCount: paidData.plans.length,
+        plans: paidData.plans,
+        prices: paidData.prices,
+      }
+      appCache.set(appStoreId, result, CACHE_TTL)
+      return result
+    }
+
+    // 第三层兜底：catalog 手动数据
     const catalogApp = findCatalogApp({ appStoreId, name: meta.name })
     if (!catalogApp) {
       throw new Error('该应用无订阅/内购数据')

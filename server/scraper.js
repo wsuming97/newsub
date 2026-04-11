@@ -365,3 +365,82 @@ export async function scrapeAppPrices(appStoreId, onProgress) {
 
   return { plans, prices }
 }
+
+/**
+ * 买断制应用的多国价格抓取
+ * 通过 iTunes Lookup API 的 country 参数，逐个查询各区购买价格
+ * 
+ * 与 IAP 抓取不同：
+ * - IAP 需要解析 HTML 页面中的 textPair 结构
+ * - 买断价直接从 iTunes JSON API 获取，更稳定
+ * 
+ * @param {string} appStoreId App Store 数字 ID
+ * @param {function} onProgress 进度回调
+ * @returns {{ plans, prices } | null}
+ */
+export async function scrapePaidAppPrices(appStoreId, onProgress) {
+  const rates = getCnyRates()
+
+  // 1. 先用美区确认这是一个付费应用
+  const usRes = await fetch(`https://itunes.apple.com/lookup?id=${appStoreId}&country=us`, {
+    signal: AbortSignal.timeout(10000)
+  })
+  const usData = await usRes.json()
+  if (!usData.results || usData.results.length === 0) return null
+
+  const usApp = usData.results[0]
+  if (usApp.price === 0 || usApp.price === undefined) return null // 免费应用不走这个路径
+
+  const appName = usApp.trackName || 'App'
+  const planName = `${appName}（买断）`
+  const plans = [planName]
+  const prices = { [planName]: [] }
+
+  // 2. 并发查询所有 34 国价格（每批 5 个）
+  const concurrency = 5
+  let completed = 0
+
+  for (let i = 0; i < COUNTRIES.length; i += concurrency) {
+    const batch = COUNTRIES.slice(i, i + concurrency)
+    const results = await Promise.all(batch.map(async (c) => {
+      await sleep(Math.random() * 300)
+      try {
+        const res = await fetch(`https://itunes.apple.com/lookup?id=${appStoreId}&country=${c.code}`, {
+          signal: AbortSignal.timeout(10000)
+        })
+        const data = await res.json()
+        if (data.results && data.results.length > 0) {
+          return { c, app: data.results[0] }
+        }
+        return { c, app: null }
+      } catch {
+        return { c, app: null }
+      }
+    }))
+
+    for (const { c, app } of results) {
+      completed++
+      if (onProgress) onProgress(completed, COUNTRIES.length, c.name)
+
+      if (!app || app.price === 0 || app.price === undefined) continue
+
+      const currency = app.currency || c.currency
+      const rate = rates[currency]
+      if (!rate) continue
+
+      prices[planName].push({
+        region: c.name,
+        flag: c.flag,
+        original: app.formattedPrice || `${app.price} ${currency}`,
+        cny: parseFloat((app.price * rate).toFixed(2)),
+      })
+    }
+  }
+
+  if (prices[planName].length === 0) return null
+
+  // 3. 按 CNY 升序排列
+  prices[planName].sort((a, b) => a.cny - b.cny)
+
+  return { plans, prices }
+}
