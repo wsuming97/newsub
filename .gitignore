@@ -43,3 +43,15 @@ src/data/apps.js
 
 # === 旧版失效爬虫（已废弃）===
 # scripts/fetch_prices.js 保留在仓库中作为文档记录
+
+# === 内部文档（不上传到远程仓库）===
+ISSUES.md
+MAINTENANCE.md
+VPS_DEPLOY_CHECKLIST.md
+deploy.sh
+
+# === 无关子项目 ===
+remote_caddnginx/
+
+# === 旧版本地图标（已改用 iTunes CDN URL）===
+public/icons/
