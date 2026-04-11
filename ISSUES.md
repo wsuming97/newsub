@@ -5,20 +5,13 @@
 
 ---
 
-## 🔴 P1 — 部分应用爬取后无订阅数据显示
+## 🟢 P1 — 部分应用爬取后无订阅数据显示（已修复）
 
 **现象**：后端成功爬取了某些应用（如 Spotify、Google Meet），但返回 `该应用无订阅/内购数据`，导致前端 plansCount 始终为 0。
 
-**原因**：这些应用虽然有订阅服务，但不通过 App Store 内购提供（例如 Spotify 的订阅走官网，App Store 页面上没有内购价格条目）。
+**修复方案**：已通过 `fallbackCatalog` 机制和 `apps.json` 提供官网支付应用的兜底数据。对于 100% 免费的应用已从推荐列表中移除。前端无数据时显示 "暂无数据"。
 
-**影响范围**：Spotify、Google Meet、Shazam、部分游戏类应用。
-
-**建议修复**：
-- 方案 A：对这类应用采用 iCloud 同样的"虚拟应用"策略，硬编码其官方定价
-- 方案 B：在前端对 plansCount=0 的应用显示"该应用不通过 App Store 订阅"提示，而非空白
-- 方案 C：从 RECOMMENDED 列表中移除无法提供价格对比价值的应用
-
-**相关文件**：`server/index.js`（performScrape / preWarmCache）、`server/scraper.js`
+**相关文件**：`server/index.js`、`server/fallbackCatalog.js`、`src/data/api.js`
 
 ---
 
